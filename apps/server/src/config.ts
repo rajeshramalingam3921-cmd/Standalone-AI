@@ -1,0 +1,50 @@
+import { z } from 'zod';
+
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+
+const booleanString = z
+  .enum(['true', 'false'])
+  .default('false')
+  .transform((v) => v === 'true');
+
+const EnvSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    HOST: z.string().min(1).default('127.0.0.1'),
+    PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+    LOG_LEVEL: z
+      .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
+      .default('info'),
+    ALLOW_NON_LOOPBACK: booleanString,
+  })
+  .superRefine((env, ctx) => {
+    if (!LOOPBACK_HOSTS.has(env.HOST) && !env.ALLOW_NON_LOOPBACK) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['HOST'],
+        message:
+          'Refusing to bind to a non-loopback address. Set ALLOW_NON_LOOPBACK=true only on a private network you control.',
+      });
+    }
+  });
+
+export type AppConfig = z.output<typeof EnvSchema>;
+
+export class ConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigError';
+  }
+}
+
+/** Parse and validate configuration. Error messages never echo values (they may be secrets). */
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const result = EnvSchema.safeParse(env);
+  if (!result.success) {
+    const details = result.error.issues
+      .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+      .join('; ');
+    throw new ConfigError(`Invalid configuration — ${details}`);
+  }
+  return result.data;
+}

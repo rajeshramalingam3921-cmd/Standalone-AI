@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.vite/
+
+# Secrets — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Per-project workspaces managed by Thiran AI at runtime
+/workspaces/
+/data/
