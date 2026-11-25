@@ -1,4 +1,5 @@
-import { buildApp } from './app.js';
+import { existsSync } from 'node:fs';
+import { WEB_DIST, buildApp } from './app.js';
 import { loadEnvFile } from './env-file.js';
 import { ConfigError, loadConfig } from './config.js';
 import { StoreCorruptError } from './store/errors.js';
@@ -58,6 +59,9 @@ async function main(): Promise<void> {
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
 
   await app.listen({ host: config.HOST, port: config.PORT });
+  if (config.SERVE_WEB === 'true' && !existsSync(`${WEB_DIST}/index.html`)) {
+    process.stderr.write('SERVE_WEB=true but the web UI is not built. Run `pnpm build`.\n');
+  }
 }
 
 void main();

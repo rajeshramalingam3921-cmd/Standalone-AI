@@ -4,11 +4,31 @@ A personal, security-first AI development platform: manage multiple software pro
 plan → approve → execute → verify → report coding tasks with AI models, and operate it
 from an iPhone.
 
-> **Status: Phase 7 (audit, backups, checks).** Works today: sign-in, projects, AI chat, a
-> controlled AI agent (plan → approve → diff → approve → your checks → Tamil report), an
-> append-only audit log, `pnpm backup` / restore, and secret + dependency checks in CI.
-> **Not yet verified with the real Claude API, on Windows, or on a physical iPhone.**
-> See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/OPERATIONS.md](docs/OPERATIONS.md).
+> **Status: Phase 8 — feature-complete MVP.** Sign-in, projects, AI chat, a controlled AI
+> agent (plan → approve → diff → approve → your checks → Tamil report), audit log, backups,
+> production mode, iPhone Home-Screen app, and a black-box end-to-end test.
+> **Not yet verified: the real Claude API, Windows, a physical iPhone** — see
+> "What is verified" below.
+
+## Documentation
+
+| Guide                                                                | For                                                  |
+| -------------------------------------------------------------------- | ---------------------------------------------------- |
+| [docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)                       | Installing and running on your Windows PC            |
+| [docs/IPHONE-ACCESS.md](docs/IPHONE-ACCESS.md)                       | Safe access from the iPhone (private network, HTTPS) |
+| [docs/USER-GUIDE-TA.md](docs/USER-GUIDE-TA.md)                       | பயன்பாட்டு வழிகாட்டி (தமிழ்)                             |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md)                             | Backups, restore, audit, incidents                   |
+| [docs/SECURITY.md](docs/SECURITY.md)                                 | Security model                                       |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/adr/](docs/adr/) | Design and decisions                                 |
+
+## What is verified
+
+| Verified (automated, every CI run)                                                                             | Not yet verified                                          |
+| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 250+ unit/integration tests incl. real PostgreSQL 16                                                           | A real Claude API agent run (`pnpm e2e:live`)             |
+| `pnpm e2e`: built server as a real process, full workflow over HTTP with a sample project, CLI backup, restart | Windows (paths, `cmd.exe` wrapper, `taskkill`, `pg_dump`) |
+| Agent loop against a local fake of the Messages API                                                            | A physical iPhone / Tailscale                             |
+| Browser runs at iPhone 13 size (during development)                                                            |                                                           |
 
 ## Requirements
 
@@ -75,7 +95,20 @@ chat cannot see your files or run anything, and says so.
 5. Limits: 3 execution attempts and 10 plans per task, 30 model turns, a token budget and a
    20-minute timeout per run. No automatic retries.
 
-### Run
+### Production (one server for UI + API)
+
+```bash
+pnpm start          # builds, then serves http://127.0.0.1:4000
+```
+
+### End-to-end self-test
+
+```bash
+pnpm e2e                      # free: mock AI, throwaway data, never reads your .env
+ANTHROPIC_API_KEY=... pnpm e2e:live --yes   # REAL agent on a sample bug (billed, token-capped)
+```
+
+### Development
 
 ```bash
 pnpm dev:server                 # API on http://127.0.0.1:4000

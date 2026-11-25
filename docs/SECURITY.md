@@ -39,3 +39,11 @@ swap in a symlink between check and write is out of scope for this single-user t
   database URLs with passwords, `.env`/key files). CI runs it on every push.
 - `pnpm audit:deps` fails on moderate or worse known vulnerabilities; CI runs it too.
 - Backups are written owner-only (0600) and the backup folder is git-ignored.
+
+## Production mode (Phase 8)
+
+- Web UI CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'` (inline
+  _styles_ only, for React style attributes), `frame-ancestors 'none'`, `object-src 'none'`.
+- `TRUST_PROXY=true` trusts `X-Forwarded-*` **only from 127.0.0.1/::1** (a local proxy such as
+  Tailscale Serve); forwarded headers from any other peer are ignored.
+- The end-to-end test runs with `THIRAN_NO_ENV_FILE=1`, so it can never touch real data.

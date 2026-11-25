@@ -78,6 +78,16 @@ const EnvSchema = z
     BACKUP_DIR: z.string().min(1).default('.thiran-backups'),
     COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(600_000),
     COMMAND_OUTPUT_MAX: z.coerce.number().int().min(1_000).max(1_000_000).default(64_000),
+    /**
+     * Serve the built web UI (apps/web/dist) from this server: "auto" = when the build
+     * exists and NODE_ENV is not "test".
+     */
+    SERVE_WEB: z.enum(['auto', 'true', 'false']).default('auto'),
+    /**
+     * Trust X-Forwarded-* headers from a proxy on THIS machine only (e.g. Tailscale Serve),
+     * so audit logs and rate limits see the real client address.
+     */
+    TRUST_PROXY: booleanString,
     /** Host names this server answers to (comma-separated). Guards against DNS rebinding. */
     ALLOWED_HOSTS: z
       .string()

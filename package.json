@@ -25,7 +25,10 @@
     "backup": "pnpm build:shared && pnpm --filter @thiran/server cli backup",
     "restore": "pnpm build:shared && pnpm --filter @thiran/server cli restore",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "audit:deps": "pnpm audit --audit-level=moderate"
+    "audit:deps": "pnpm audit --audit-level=moderate",
+    "start": "pnpm build && pnpm --filter @thiran/server start",
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:live": "node scripts/e2e.mjs --live"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

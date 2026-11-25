@@ -2,17 +2,17 @@
 
 Each phase must pass `pnpm check` and its acceptance criteria before the next starts.
 
-| Phase | Scope                                                               | Acceptance criteria                                                                                     | Status  |
-| ----- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------- |
-| 1     | Inspect environment, write plan                                     | This document + ARCHITECTURE + SECURITY                                                                 | ✅ Done |
-| 2     | Monorepo, config, lint/test/build, CI, health endpoint, mobile UI   | `pnpm check` green; UI shows live server status on iPhone viewport                                      | ✅ Done |
-| 3     | Workspace UI: project dashboard, project create/select, task list   | Usable at 375px width; status badges for waiting/running/failed/completed; state survives refresh       | ✅ Done |
-| 4     | PostgreSQL + ORM, projects/tasks/events API, owner auth, rate limit | Integration tests against a real test DB; unauthenticated requests rejected; per-project data isolation | ✅ Done |
-| 5     | AI provider layer (Claude first) + chat UI                          | Mocked-provider tests for errors/rate limits/timeouts; keys never reach the browser or logs             | ✅ Done |
-| 6     | Agent engine: sandboxed file ops, diffs, approvals, command runner  | Path-escape tests; destructive actions blocked without approval; diff shown before apply                | ✅ Done |
-| 7     | Logging, audit, backups/rollback, dependency/security checks        | Audit trail for every change; rollback verified on a sample project                                     | ✅ Done |
-| 8     | End-to-end workflow test, setup/usage/deploy docs                   | Plan→approve→execute→verify→report on a sample project, verified end to end                             | Next    |
-| Later | Templates (business site, dashboard, POS, ERP, accounting, …)       | Each template builds and passes its own tests; no unverified compliance claims                          |         |
+| Phase | Scope                                                               | Acceptance criteria                                                                                     | Status         |
+| ----- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------- |
+| 1     | Inspect environment, write plan                                     | This document + ARCHITECTURE + SECURITY                                                                 | ✅ Done        |
+| 2     | Monorepo, config, lint/test/build, CI, health endpoint, mobile UI   | `pnpm check` green; UI shows live server status on iPhone viewport                                      | ✅ Done        |
+| 3     | Workspace UI: project dashboard, project create/select, task list   | Usable at 375px width; status badges for waiting/running/failed/completed; state survives refresh       | ✅ Done        |
+| 4     | PostgreSQL + ORM, projects/tasks/events API, owner auth, rate limit | Integration tests against a real test DB; unauthenticated requests rejected; per-project data isolation | ✅ Done        |
+| 5     | AI provider layer (Claude first) + chat UI                          | Mocked-provider tests for errors/rate limits/timeouts; keys never reach the browser or logs             | ✅ Done        |
+| 6     | Agent engine: sandboxed file ops, diffs, approvals, command runner  | Path-escape tests; destructive actions blocked without approval; diff shown before apply                | ✅ Done        |
+| 7     | Logging, audit, backups/rollback, dependency/security checks        | Audit trail for every change; rollback verified on a sample project                                     | ✅ Done        |
+| 8     | End-to-end workflow test, setup/usage/deploy docs                   | Plan→approve→execute→verify→report on a sample project, verified end to end                             | ✅ Done (mock) |
+| Later | Templates (business site, dashboard, POS, ERP, accounting, …)       | Each template builds and passes its own tests; no unverified compliance claims                          |                |
 
 ## Phase 1 findings (2026-11-24)
 
@@ -100,3 +100,23 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
   (identical row counts, server starts on it) → `DELETE FROM audit_events` refused.
 - Bugs found by that run and fixed: a backup taken before a schema migration exited with an
   error (audit table not there yet); `.dump` files were world-readable.
+
+## Phase 8 notes (2026-11-25)
+
+- Production mode: one server serves the built UI (strict same-origin CSP, immutable hashed
+  assets, no-cache HTML) and the API; `TRUST_PROXY` for a local HTTPS proxy; `pnpm start`.
+- iPhone Home-Screen app: web manifest and icons.
+- `pnpm e2e` (CI): built server as a real process with isolated temp data (never reads `.env`):
+  sign-in → project → failing test → AI plan/approve/diff/apply → checks → honest report →
+  audit → rollback → CLI backup → restart persistence → sign-out. ~3 s.
+- `pnpm e2e:live --yes`: the same against the real Claude API; expects the agent to fix the
+  sample bug and the test to pass. Guarded by an explicit key + `--yes`; token-capped.
+- Guides: SETUP-WINDOWS, IPHONE-ACCESS, USER-GUIDE-TA.
+- **Open verification items:** real Claude run, Windows, physical iPhone/Tailscale.
+
+## Possible next steps (not planned yet)
+
+- Second-model review of agent diffs (the "Claude Code review" step of the original plan).
+- Agent-run checks inside the loop (with owner opt-in), git branch per task.
+- Multi-user accounts and roles; per-project sharing.
+- Native mobile wrapper (only if the web app proves insufficient on iPhone).

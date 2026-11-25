@@ -10,6 +10,8 @@ export const ENV_FILE = fileURLToPath(new URL('../../../.env', import.meta.url))
  * A missing file is fine; values are never printed.
  */
 export function loadEnvFile(file = ENV_FILE, env: NodeJS.ProcessEnv = process.env): void {
+  // Isolated runs (e.g. the end-to-end test) must never pick up the owner's real settings.
+  if (env.THIRAN_NO_ENV_FILE === '1') return;
   let raw: string;
   try {
     raw = readFileSync(file, 'utf8');

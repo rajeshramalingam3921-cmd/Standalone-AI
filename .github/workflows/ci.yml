@@ -32,5 +32,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - name: End-to-end test (built app, mock AI)
+        run: pnpm e2e
       - name: Dependency audit
         run: pnpm audit:deps

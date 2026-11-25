@@ -25,6 +25,7 @@ export async function makeTestApp(
     now?: () => Date;
     withOwner?: boolean;
     provider?: AiProvider;
+    webDir?: string;
     /** Register extra routes before the app becomes ready. */
     setup?: (app: FastifyInstance) => void;
   } = {},
@@ -34,6 +35,7 @@ export async function makeTestApp(
   const app = await buildApp(loadConfig({ NODE_ENV: 'test', ...opts.env }), store, {
     ...(opts.now && { now: opts.now }),
     ...(opts.provider && { provider: opts.provider }),
+    ...(opts.webDir && { webDir: opts.webDir }),
   });
   opts.setup?.(app);
 
