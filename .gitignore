@@ -13,3 +13,4 @@ coverage/
 # Per-project workspaces managed by Thiran AI at runtime
 /workspaces/
 /data/
+.thiran-data/

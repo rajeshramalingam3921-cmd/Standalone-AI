@@ -6,8 +6,8 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
 | ----- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------- |
 | 1     | Inspect environment, write plan                                     | This document + ARCHITECTURE + SECURITY                                                                 | ✅ Done |
 | 2     | Monorepo, config, lint/test/build, CI, health endpoint, mobile UI   | `pnpm check` green; UI shows live server status on iPhone viewport                                      | ✅ Done |
-| 3     | Workspace UI: project dashboard, project create/select, task list   | Usable at 375px width; status badges for waiting/running/failed/completed; state survives refresh       | Next    |
-| 4     | PostgreSQL + ORM, projects/tasks/events API, owner auth, rate limit | Integration tests against a real test DB; unauthenticated requests rejected; per-project data isolation |         |
+| 3     | Workspace UI: project dashboard, project create/select, task list   | Usable at 375px width; status badges for waiting/running/failed/completed; state survives refresh       | ✅ Done |
+| 4     | PostgreSQL + ORM, projects/tasks/events API, owner auth, rate limit | Integration tests against a real test DB; unauthenticated requests rejected; per-project data isolation | Next    |
 | 5     | AI provider layer (Claude first) + chat UI                          | Mocked-provider tests for errors/rate limits/timeouts; keys never reach the browser or logs             |         |
 | 6     | Agent engine: sandboxed file ops, diffs, approvals, command runner  | Path-escape tests; destructive actions blocked without approval; diff shown before apply                |         |
 | 7     | Logging, audit, backups/rollback, dependency/security checks        | Audit trail for every change; rollback verified on a sample project                                     |         |
@@ -21,3 +21,15 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
   Docker, Rust, Playwright/Chromium.
 - No Windows laptop connected; Windows-specific setup is unverified.
 - No AI provider API keys configured (needed from Phase 5).
+
+## Phase 3 notes (2026-11-25)
+
+- Persistence is a JSON file (`DATA_DIR/thiran.json`, default `.thiran-data/`) behind a
+  `Store` interface; Phase 4 replaces it with PostgreSQL without changing the API.
+  Writes are serialized and atomic (temp file + rename, mode 600). A corrupt file stops the
+  server instead of being overwritten.
+- Tasks are created as `draft`. Users can only **approve**, **request changes** or **cancel**;
+  no one can mark a task completed by hand — that will come only from verification (Phase 6).
+- Verified in Chromium at iPhone 13 size: create project → add tasks → cancel (two-tap
+  confirm) → filter → reload keeps screen, drafts and state → dashboard counts → server
+  restart keeps data. Not yet verified on a physical iPhone.

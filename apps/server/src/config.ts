@@ -16,6 +16,18 @@ const EnvSchema = z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
     ALLOW_NON_LOOPBACK: booleanString,
+    /** Directory for persisted data (Phase 3: a JSON file; Phase 4: PostgreSQL). */
+    DATA_DIR: z.string().min(1).default('.thiran-data'),
+    /** Host names this server answers to (comma-separated). Guards against DNS rebinding. */
+    ALLOWED_HOSTS: z
+      .string()
+      .default('127.0.0.1,localhost,::1')
+      .transform((v) =>
+        v
+          .split(',')
+          .map((h) => h.trim().toLowerCase())
+          .filter(Boolean),
+      ),
   })
   .superRefine((env, ctx) => {
     if (!LOOPBACK_HOSTS.has(env.HOST) && !env.ALLOW_NON_LOOPBACK) {

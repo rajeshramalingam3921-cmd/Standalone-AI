@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { HealthResponse } from '@thiran/shared';
 import type { AppConfig } from './config.js';
+import { registerProjectRoutes } from './routes/projects.js';
+import type { Store } from './store/types.js';
 import { VERSION } from './version.js';
 
 /** Paths redacted from structured logs so credentials never reach log files. */
@@ -15,13 +17,33 @@ export const LOG_REDACT_PATHS = [
   '*.secret',
 ];
 
-export function buildApp(config: AppConfig): FastifyInstance {
+export function buildApp(config: AppConfig, store: Store): FastifyInstance {
   const app = Fastify({
     logger: {
       level: config.NODE_ENV === 'test' ? 'silent' : config.LOG_LEVEL,
       redact: { paths: LOG_REDACT_PATHS, censor: '[REDACTED]' },
     },
     bodyLimit: 1024 * 1024,
+  });
+
+  // DNS-rebinding protection: only answer requests addressed to an allowed host name.
+  const allowedHosts = new Set(config.ALLOWED_HOSTS);
+  app.addHook('onRequest', async (req, reply) => {
+    const host = req.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    if (!allowedHosts.has(host)) {
+      return reply.status(421).send({ error: 'misdirected_request', message: 'Host not allowed.' });
+    }
+  });
+
+  // CSRF hardening: state-changing requests must be JSON (forces a CORS preflight,
+  // which this API never approves for foreign origins).
+  app.addHook('preValidation', async (req, reply) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
+    if (!(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+      return reply
+        .status(415)
+        .send({ error: 'unsupported_media_type', message: 'Use application/json.' });
+    }
   });
 
   // Conservative security headers for an API that serves JSON only.
@@ -51,7 +73,7 @@ export function buildApp(config: AppConfig): FastifyInstance {
         .send({ error: 'internal_error', message: 'Something went wrong.' });
     }
     return reply.status(statusCode).send({
-      error: 'request_error',
+      error: statusCode === 409 ? 'conflict' : 'request_error',
       message: typeof e.message === 'string' ? e.message : 'Bad request.',
     });
   });
@@ -66,6 +88,8 @@ export function buildApp(config: AppConfig): FastifyInstance {
     version: VERSION,
     uptimeSeconds: Math.round(process.uptime()),
   }));
+
+  registerProjectRoutes(app, store);
 
   return app;
 }
