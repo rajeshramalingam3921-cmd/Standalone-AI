@@ -22,6 +22,13 @@
       "when": 1795580131600,
       "tag": "0002_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795580872614,
+      "tag": "0003_agent",
+      "breakpoints": true
     }
   ]
 }

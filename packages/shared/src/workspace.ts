@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { CommandName, ProjectCommands } from './project.js';
+import type { CommandName } from './commands.js';
+import type { ProjectCommands } from './project.js';
 
 /** GET /api/projects/:id/workspace */
 export interface WorkspaceInfo {
@@ -58,6 +59,8 @@ export interface ChangeSet {
   projectId: string;
   title: string;
   source: 'user' | 'agent';
+  /** Task that produced this change (agent changes). */
+  taskId: string | null;
   status: ChangeSetStatus;
   files: ChangeFile[];
   createdAt: string;

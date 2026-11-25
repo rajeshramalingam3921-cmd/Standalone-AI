@@ -5,6 +5,8 @@ import { createMockProvider } from '../src/ai/mock.js';
 import { AiProviderError, type AiProvider, type ProviderChatRequest } from '../src/ai/types.js';
 import { makeTestApp, type TestApp } from './helpers.js';
 
+const noAgent = { runAgent: () => Promise.reject(new Error('not used')) };
+
 let t: TestApp;
 afterEach(async () => {
   await t?.app.close();
@@ -14,6 +16,7 @@ afterEach(async () => {
 function spyProvider(reply = 'பதில்', opts: { configured?: boolean } = {}) {
   const calls: ProviderChatRequest[] = [];
   const p: AiProvider = {
+    ...noAgent,
     id: 'anthropic',
     configured: opts.configured ?? true,
     async streamChat(req) {
@@ -142,6 +145,7 @@ describe('sending messages (SSE stream)', () => {
 
   it('records provider errors with a safe code and sends an error event', async () => {
     const failing: AiProvider = {
+      ...noAgent,
       id: 'anthropic',
       configured: true,
       async streamChat(req) {
@@ -205,6 +209,7 @@ describe('sending messages (SSE stream)', () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     const slow: AiProvider = {
+      ...noAgent,
       id: 'anthropic',
       configured: true,
       async streamChat() {

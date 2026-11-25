@@ -15,6 +15,7 @@ import {
   TASK_STATUSES,
   type ChangeFile,
   type ProjectCommands,
+  type TaskAgentState,
   type TaskHistoryEntry,
 } from '@thiran/shared';
 
@@ -46,6 +47,7 @@ export const tasks = pgTable(
     description: text('description').notNull().default(''),
     status: text('status').notNull(),
     history: jsonb('history').$type<TaskHistoryEntry[]>().notNull(),
+    agent: jsonb('agent').$type<TaskAgentState>(),
     createdAt: ts('created_at'),
     updatedAt: ts('updated_at'),
   },
@@ -128,6 +130,7 @@ export const changeSets = pgTable(
       .references(() => projects.id, { onDelete: 'restrict' }),
     title: text('title').notNull(),
     source: text('source').notNull(),
+    taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'restrict' }),
     status: text('status').notNull(),
     files: jsonb('files').$type<ChangeFile[]>().notNull(),
     createdAt: ts('created_at'),

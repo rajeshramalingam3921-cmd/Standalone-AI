@@ -201,6 +201,7 @@ describe.each(impls)('Store contract: %s', (_name, make) => {
       projectId: p.id,
       title: 'Fix',
       source: 'user' as const,
+      taskId: null,
       status: 'pending' as const,
       files: [
         {
@@ -271,6 +272,34 @@ describe.each(impls)('Store contract: %s', (_name, make) => {
       run.id,
     ]);
     expect(await s.listRuns((await s.createProject(project('Q'))).id)).toEqual([]);
+  });
+
+  it('stores task agent state and finds tasks with an active agent', async () => {
+    const p = await s.createProject(project('P'));
+    const t1 = await s.createTask(p.id, { title: 'a', description: '' });
+    const t2 = await s.createTask(p.id, { title: 'b', description: '' });
+    expect(t1.agent).toBeNull();
+    const state = {
+      attempts: 1,
+      plans: 1,
+      phase: 'executing' as const,
+      plan: { summary: 'திட்டம்', steps: ['x'], files: ['a.ts'], checks: ['test' as const] },
+      feedback: null,
+      changeSetId: null,
+      checks: [],
+      summary: null,
+      report: null,
+      error: null,
+      activity: [{ at: '2026-01-01T00:00:00.000Z', kind: 'tool' as const, text: 'read_file a.ts' }],
+      usage: { inputTokens: 10, outputTokens: 5 },
+    };
+    const saved = await s.setTaskAgent(p.id, t1.id, state);
+    expect(saved.agent).toEqual(state);
+    expect((await s.getTask(p.id, t1.id))!.agent).toEqual(state);
+    await s.setTaskAgent(p.id, t2.id, { ...state, phase: 'awaiting_diff' });
+    expect((await s.listActiveAgentTasks()).map((t) => t.id)).toEqual([t1.id]);
+    const other = await s.createProject(project('Q'));
+    await expect(s.setTaskAgent(other.id, t1.id, state)).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('manages owner password and sessions', async () => {

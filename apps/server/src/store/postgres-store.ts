@@ -54,6 +54,7 @@ const toTask = (r: TaskRow): Task => ({
   description: r.description,
   status: r.status as TaskStatus,
   history: r.history,
+  agent: r.agent ?? null,
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
 });
@@ -84,6 +85,7 @@ const toChangeSet = (r: typeof changeSets.$inferSelect): ChangeSet => ({
   projectId: r.projectId,
   title: r.title,
   source: r.source as ChangeSet['source'],
+  taskId: r.taskId,
   status: r.status as ChangeSetStatus,
   files: r.files,
   createdAt: r.createdAt.toISOString(),
@@ -206,6 +208,7 @@ export function createPostgresStore(opts: PostgresStoreOptions): Store {
             projectId,
             status: 'draft',
             history: [{ from: null, to: 'draft', at: iso, by: 'user' }],
+            agent: null,
             createdAt: at,
             updatedAt: at,
           })
@@ -237,6 +240,24 @@ export function createPostgresStore(opts: PostgresStoreOptions): Store {
           .returning();
         return toTask(updated!);
       });
+    },
+
+    async setTaskAgent(projectId, taskId, agent) {
+      const [row] = await db
+        .update(tasks)
+        .set({ agent, updatedAt: now() })
+        .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId)))
+        .returning();
+      if (!row) throw new NotFoundError('Task');
+      return toTask(row);
+    },
+
+    async listActiveAgentTasks() {
+      const rows = await db
+        .select()
+        .from(tasks)
+        .where(sql`${tasks.agent}->>'phase' IN ('planning', 'executing', 'verifying')`);
+      return rows.map(toTask);
     },
 
     async listConversations(projectId) {

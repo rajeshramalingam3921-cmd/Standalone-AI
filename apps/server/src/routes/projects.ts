@@ -11,10 +11,17 @@ import {
   type TaskStatus,
 } from '@thiran/shared';
 import { z } from 'zod';
+import type { AgentEngine } from '../agent/engine.js';
 import type { Store } from '../store/types.js';
 
 const Uuid = z.uuid();
-const ActionBody = z.object({ action: z.enum(USER_TASK_ACTION_NAMES) });
+const ActionBody = z
+  .object({
+    action: z.enum(USER_TASK_ACTION_NAMES),
+    /** Owner feedback for request_changes. */
+    feedback: z.string().trim().max(4000).optional(),
+  })
+  .strict();
 
 function validationError(reply: FastifyReply, error: z.ZodError) {
   // Report paths and messages only — never echo the submitted values back.
@@ -29,7 +36,11 @@ function validationError(reply: FastifyReply, error: z.ZodError) {
 const notFound = (reply: FastifyReply, what: string) =>
   reply.status(404).send({ error: 'not_found', message: `${what} not found.` } satisfies ApiError);
 
-export function registerProjectRoutes(app: FastifyInstance, store: Store): void {
+export function registerProjectRoutes(
+  app: FastifyInstance,
+  store: Store,
+  agent: AgentEngine,
+): void {
   app.get('/api/projects', async (): Promise<ProjectSummary[]> => {
     const projects = await store.listProjects();
     return Promise.all(
@@ -111,7 +122,18 @@ export function registerProjectRoutes(app: FastifyInstance, store: Store): void 
           message: `Action "${parsed.data.action}" is not allowed while the task is ${task.status}.`,
         } satisfies ApiError);
       }
-      return store.transitionTask(projectId, taskId, action.to, 'user');
+      const blocked = agent.precheck(task, parsed.data.action);
+      if (blocked) {
+        return reply.status(409).send({
+          error: blocked,
+          message: `Action "${parsed.data.action}" is not possible now (${blocked}).`,
+        } satisfies ApiError);
+      }
+      // The status change is atomic in the store, so a double tap cannot start two jobs.
+      const updated = await store.transitionTask(projectId, taskId, action.to, 'user');
+      const project = (await store.getProject(projectId))!;
+      await agent.onUserAction(project, updated, parsed.data.action, parsed.data.feedback);
+      return (await store.getTask(projectId, taskId))!;
     },
   );
 }

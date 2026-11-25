@@ -107,6 +107,14 @@ function checkPolicy(segs: string[]): void {
     throw new WorkspaceError('denied');
 }
 
+/** Validate a path for staging a write (syntax + secret/VCS policy), without touching disk. */
+export function checkWritablePath(p: string): string {
+  const segs = parseRelPath(p);
+  if (segs.length === 0) throw new WorkspaceError('invalid_path');
+  checkPolicy(segs);
+  return segs.join('/');
+}
+
 const inside = (root: string, target: string) => {
   const rel = relative(root, target);
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));

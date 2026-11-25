@@ -6,6 +6,8 @@ import type { TaskStatus } from './task-status.js';
  * a user cannot mark a task "completed" by hand.
  */
 export const USER_TASK_ACTIONS = {
+  /** Ask the AI agent to (re)plan this task. */
+  plan: { from: ['draft', 'failed', 'needs_attention'], to: 'planning' },
   approve: { from: ['awaiting_approval'], to: 'running' },
   request_changes: { from: ['awaiting_approval'], to: 'planning' },
   cancel: {
@@ -32,7 +34,8 @@ export function availableUserActions(status: TaskStatus): UserTaskAction[] {
 }
 
 export const USER_TASK_ACTION_LABEL_TA: Readonly<Record<UserTaskAction, string>> = {
-  approve: 'அனுமதி அளி',
+  plan: 'AI திட்டமிடட்டும்',
+  approve: 'திட்டத்தை அனுமதி',
   request_changes: 'மாற்றம் கேள்',
   cancel: 'ரத்து செய்',
 };

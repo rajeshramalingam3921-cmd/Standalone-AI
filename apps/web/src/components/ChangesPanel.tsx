@@ -122,6 +122,13 @@ function ChangeDetail({ projectId, changeId }: { projectId: string; changeId: st
           <h2 className="card-title">{c.title}</h2>
           <span className={`badge tone-${TONE[c.status]}`}>{CHANGE_STATUS_LABEL_TA[c.status]}</span>
         </div>
+        {c.taskId && (
+          <p>
+            <a href={href({ name: 'project', projectId, tab: 'task', taskId: c.taskId })}>
+              ← தொடர்புடைய task
+            </a>
+          </p>
+        )}
         <small className="muted">
           {c.source === 'agent' ? 'AI பரிந்துரை' : 'உங்கள் திருத்தம்'} · {fmt(c.createdAt)}
           {c.decidedAt && ` · முடிவு: ${fmt(c.decidedAt)}`}

@@ -65,6 +65,15 @@ const EnvSchema = z
           .map((p) => p.trim())
           .filter(Boolean),
       ),
+    /** Execution attempts (approve → execute) per task. */
+    AGENT_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(3),
+    /** Plans (incl. re-plans) per task. */
+    AGENT_MAX_PLANS: z.coerce.number().int().min(1).max(50).default(10),
+    /** Model turns per agent run. */
+    AGENT_MAX_TURNS: z.coerce.number().int().min(1).max(200).default(30),
+    /** Input+output tokens per agent run. */
+    AGENT_TOKEN_BUDGET: z.coerce.number().int().min(1_000).max(20_000_000).default(1_500_000),
+    AGENT_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(7_200_000).default(1_200_000),
     COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(600_000),
     COMMAND_OUTPUT_MAX: z.coerce.number().int().min(1_000).max(1_000_000).default(64_000),
     /** Host names this server answers to (comma-separated). Guards against DNS rebinding. */

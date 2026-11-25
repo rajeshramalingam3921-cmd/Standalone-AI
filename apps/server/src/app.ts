@@ -2,6 +2,8 @@ import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { HealthResponse } from '@thiran/shared';
+import { AgentEngine } from './agent/engine.js';
+import { ProjectLocks } from './agent/locks.js';
 import { createProvider } from './ai/provider.js';
 import type { AiProvider } from './ai/types.js';
 import { registerAuth } from './auth/routes.js';
@@ -118,9 +120,27 @@ export async function buildApp(
   }));
 
   registerAuth(app, store, config, opts.now ? { now: opts.now } : {});
-  registerProjectRoutes(app, store);
-  registerChatRoutes(app, store, config, opts.provider ?? createProvider(config), opts.now);
-  registerWorkspaceRoutes(app, store, config, opts.now);
+  const provider = opts.provider ?? createProvider(config);
+  const locks = new ProjectLocks();
+  const agent = new AgentEngine({
+    store,
+    config,
+    provider,
+    locks,
+    log: app.log,
+    ...(opts.now && { now: opts.now }),
+  });
+  app.decorate('agent', agent);
+
+  registerProjectRoutes(app, store, agent);
+  registerChatRoutes(app, store, config, provider, opts.now);
+  registerWorkspaceRoutes(app, store, config, locks, agent, opts.now);
 
   return app;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    agent: AgentEngine;
+  }
 }

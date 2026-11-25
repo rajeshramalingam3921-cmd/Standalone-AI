@@ -44,6 +44,8 @@ async function main(): Promise<void> {
   }
 
   const app = await buildApp(config, store);
+  const stopped = await app.agent.recover();
+  if (stopped) process.stderr.write(`Marked ${stopped} interrupted agent task(s) as failed.\n`);
   app.log.info({ store: store.kind }, 'Data store ready');
 
   const shutdown = async (signal: string) => {

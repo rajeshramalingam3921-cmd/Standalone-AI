@@ -49,6 +49,7 @@ const ChangeSetSchema = z.object({
   projectId: z.uuid(),
   title: z.string(),
   source: z.enum(['user', 'agent']),
+  taskId: z.uuid().nullable().default(null),
   status: z.enum(['pending', 'applied', 'rejected', 'reverted']),
   files: z.array(
     z.object({
@@ -226,6 +227,7 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
           projectId,
           status: 'draft',
           history: [{ from: null, to: 'draft', at: ts, by: 'user' }],
+          agent: null,
           createdAt: ts,
           updatedAt: ts,
         };
@@ -245,6 +247,24 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
         task.updatedAt = ts;
         return structuredClone(task);
       });
+    },
+
+    setTaskAgent(projectId, taskId, agent) {
+      return mutate((d) => {
+        const t = d.tasks.find((x) => x.id === taskId && x.projectId === projectId);
+        if (!t) throw new NotFoundError('Task');
+        t.agent = structuredClone(agent);
+        t.updatedAt = now().toISOString();
+        return structuredClone(t);
+      });
+    },
+
+    async listActiveAgentTasks() {
+      return structuredClone(
+        data.tasks.filter(
+          (t) => t.agent && ['planning', 'executing', 'verifying'].includes(t.agent.phase),
+        ),
+      );
     },
 
     async listConversations(projectId) {

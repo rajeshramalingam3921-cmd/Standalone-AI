@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   AiAbortedError,
   AiProviderError,
+  type AgentRunRequest,
+  type AgentRunResult,
   type AiProvider,
   type ProviderChatRequest,
 } from './types.js';
@@ -103,6 +105,92 @@ export function createAnthropicProvider(opts: AnthropicProviderOptions): AiProvi
           },
           servedModel: final.model,
         };
+      } catch (err) {
+        if (req.signal.aborted) throw new AiAbortedError();
+        throw mapAnthropicError(err);
+      }
+    },
+
+    async runAgent(req: AgentRunRequest): Promise<AgentRunResult> {
+      if (!client) throw new AiProviderError('not_configured');
+      const tools = req.tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.inputSchema as Anthropic.Beta.BetaTool.InputSchema,
+        // Large inputs (file contents) stream as generated; we validate every input ourselves.
+        eager_input_streaming: true,
+      }));
+      const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: req.prompt }];
+      const usage = { inputTokens: 0, outputTokens: 0 };
+      let servedModel = req.model;
+      let finalText = '';
+
+      try {
+        for (let turn = 0; turn < req.maxTurns; turn++) {
+          const stream = client.beta.messages.stream(
+            {
+              model: req.model,
+              max_tokens: opts.maxTokens,
+              system: req.system,
+              messages,
+              tools,
+              // tool_choice stays "auto": forced tool choice is rejected by current models.
+              output_config: { effort: opts.effort },
+              cache_control: { type: 'ephemeral' },
+              betas: ['server-side-fallback-2026-07-01'],
+              fallbacks: 'default',
+            },
+            { signal: req.signal },
+          );
+          const msg = await stream.finalMessage();
+          const u = msg.usage;
+          usage.inputTokens +=
+            u.input_tokens +
+            (u.cache_creation_input_tokens ?? 0) +
+            (u.cache_read_input_tokens ?? 0);
+          usage.outputTokens += u.output_tokens;
+          servedModel = msg.model;
+          // Pass the whole assistant turn back unchanged (thinking blocks included).
+          messages.push({ role: 'assistant', content: msg.content });
+          finalText = msg.content
+            .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
+            .map((b) => b.text)
+            .join('\n');
+
+          const done = (stop: AgentRunResult['stop']) => ({ stop, usage, finalText, servedModel });
+          if (msg.stop_reason === 'refusal') return done('refused');
+          // A turn cut off by max_tokens may hold a truncated tool input: never run it.
+          if (msg.stop_reason === 'max_tokens') return done('truncated');
+          const toolUses = msg.content.filter(
+            (b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use',
+          );
+          if (toolUses.length === 0) return done('end_turn');
+
+          // Run every requested tool, return all results in ONE user message.
+          const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
+          let stop = false;
+          for (const tu of toolUses) {
+            if (req.signal.aborted) throw new AiAbortedError();
+            let r;
+            try {
+              r = await req.execute(tu.name, tu.input);
+            } catch (e) {
+              if (e instanceof AiAbortedError) throw e;
+              r = { content: `Tool failed: ${(e as Error).message}`, isError: true };
+            }
+            results.push({
+              type: 'tool_result',
+              tool_use_id: tu.id,
+              content: r.content,
+              ...(r.isError && { is_error: true }),
+            });
+            if (r.stop) stop = true;
+          }
+          messages.push({ role: 'user', content: results });
+          if (stop) return done('tool_stop');
+          if (usage.inputTokens + usage.outputTokens > req.tokenBudget) return done('budget');
+        }
+        return { stop: 'max_turns', usage, finalText, servedModel };
       } catch (err) {
         if (req.signal.aborted) throw new AiAbortedError();
         throw mapAnthropicError(err);

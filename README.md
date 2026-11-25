@@ -4,11 +4,12 @@ A personal, security-first AI development platform: manage multiple software pro
 plan → approve → execute → verify → report coding tasks with AI models, and operate it
 from an iPhone.
 
-> **Status: Phase 6a (controlled file changes).** Works today: sign-in, projects and tasks,
-> AI chat, and — for project folders you authorize — read-only file browsing, edits that
-> become reviewable diffs, apply only after approval, rollback, and running your own
-> build/test/lint commands. **Not built yet:** the AI agent that proposes changes and runs
-> checks by itself (Phase 6b). See [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: Phase 6 (controlled AI agent).** Works today: sign-in, projects, AI chat, and an
+> AI agent that reads your authorized project folder, proposes a plan, waits for your
+> approval, proposes file changes as a diff, waits again, then runs your own checks and
+> writes a Tamil report. The agent never writes files or runs commands by itself.
+> **Not yet verified with the real Claude API** (no key in the build environment).
+> See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Requirements
 
@@ -62,6 +63,19 @@ chat cannot see your files or run anything, and says so.
    meantime, apply is refused. Applied changes can be rolled back (if untouched since).
 5. **Checks**: run your commands and read their output.
 
+### AI agent (task → plan → diff → checks → report)
+
+1. Create a task, open it, tap **AI திட்டமிடட்டும்**. The agent reads files (read-only) and
+   proposes a plan.
+2. **Approve the plan** or **request changes** with written feedback.
+3. The agent proposes complete file contents → a pending change. Review the diff in
+   **Changes** and apply it (two taps) or reject it.
+4. After applying, the project's configured checks run. The task is **completed only if all
+   checks pass**; otherwise it needs attention and you can re-plan (failed output is given to
+   the next plan). With no checks configured the task is never marked completed.
+5. Limits: 3 execution attempts and 10 plans per task, 30 model turns, a token budget and a
+   20-minute timeout per run. No automatic retries.
+
 ### Run
 
 ```bash
@@ -111,7 +125,7 @@ pnpm check   # prettier + eslint + typecheck + tests + build
 
 ## சுருக்கம் (தமிழில்)
 
-இப்போது நீங்கள் அனுமதித்த project folder-இல் files-ஐப் பார்க்கலாம், திருத்தலாம். திருத்தம் நேரடியாக
-எழுதப்படாது: முதலில் diff ஆகக் காட்டப்பட்டு, நீங்கள் இருமுறை தட்டி அனுமதித்த பிறகே எழுதப்படும்.
-இதற்கிடையில் file மாறியிருந்தால் எழுதாது. தேவைப்பட்டால் திரும்பப் பெறலாம். நீங்கள் அமைத்த
-build/test commands-ஐ மட்டும் ஓட்டலாம். AI தானாக மாற்றங்களைப் பரிந்துரைப்பது அடுத்த படி (Phase 6b).
+இப்போது ஒரு task-ஐ AI agent-இடம் கொடுக்கலாம். அது files-ஐப் படித்துத் திட்டம் தரும். நீங்கள்
+அனுமதித்தால் மாற்றங்களை diff ஆகப் பரிந்துரைக்கும். நீங்கள் அனுமதித்தால் மட்டுமே எழுதப்படும்.
+பிறகு உங்கள் tests ஓடும்; எல்லாம் வெற்றியானால் மட்டுமே "முடிந்தது" என்று சொல்லும். தமிழில்
+அறிக்கை கிடைக்கும். AI தானாக எதையும் எழுதாது, எந்த command-ஐயும் ஓட்டாது.

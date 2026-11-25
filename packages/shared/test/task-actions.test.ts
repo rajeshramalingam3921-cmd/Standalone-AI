@@ -23,7 +23,9 @@ describe('user task actions', () => {
 
   it('only allows approval while awaiting approval', () => {
     expect(availableUserActions('awaiting_approval')).toContain('approve');
-    expect(availableUserActions('draft')).toEqual(['cancel']);
+    expect(availableUserActions('draft')).toEqual(['plan', 'cancel']);
+    expect(availableUserActions('failed')).toEqual(['plan', 'cancel']);
+    expect(availableUserActions('planning')).toEqual(['cancel']);
     expect(availableUserActions('completed')).toEqual([]);
     expect(availableUserActions('cancelled')).toEqual([]);
   });

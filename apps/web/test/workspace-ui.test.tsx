@@ -29,6 +29,7 @@ describe('router (files, changes, settings)', () => {
       { name: 'project', projectId: P, tab: 'files', dir: 'src/pages' },
       { name: 'project', projectId: P, tab: 'files', file: 'docs/கணக்கு.md' },
       { name: 'project', projectId: P, tab: 'changes', changeId: CID },
+      { name: 'project', projectId: P, tab: 'task', taskId: CID },
       { name: 'project', projectId: P, tab: 'checks' },
       { name: 'project', projectId: P, tab: 'settings' },
     ];
@@ -69,6 +70,7 @@ const pending: ChangeSetView = {
   projectId: P,
   title: 'திருத்தம்: src/app.ts',
   source: 'user',
+  taskId: null,
   status: 'pending',
   files: [
     {

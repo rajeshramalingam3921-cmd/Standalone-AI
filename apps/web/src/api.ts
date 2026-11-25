@@ -65,6 +65,9 @@ const ERROR_TA: Record<string, string> = {
   file_binary: 'இது உரை file அல்ல (binary)',
   file_not_a_file: 'இது file அல்ல',
   file_not_a_directory: 'இது folder அல்ல',
+  attempt_limit: 'இந்த task-க்கான முயற்சி வரம்பு முடிந்தது',
+  plan_limit: 'இந்த task-க்கான திட்ட வரம்பு முடிந்தது',
+  no_plan: 'அனுமதிக்க ஒரு திட்டம் இல்லை',
 };
 
 function errorResult(
@@ -227,9 +230,9 @@ export const api = {
   listTasks: (projectId: string) => request<Task[]>(`/api/projects/${enc(projectId)}/tasks`),
   createTask: (projectId: string, input: TaskCreateInput) =>
     request<Task>(`/api/projects/${enc(projectId)}/tasks`, { method: 'POST', body: input }),
-  taskAction: (projectId: string, taskId: string, action: UserTaskAction) =>
+  taskAction: (projectId: string, taskId: string, action: UserTaskAction, feedback?: string) =>
     request<Task>(`/api/projects/${enc(projectId)}/tasks/${enc(taskId)}/actions`, {
       method: 'POST',
-      body: { action },
+      body: feedback ? { action, feedback } : { action },
     }),
 };

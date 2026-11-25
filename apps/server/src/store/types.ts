@@ -8,6 +8,7 @@ import type {
   ProjectCreateSchema,
   Task,
   TaskCreateSchema,
+  TaskAgentState,
   TaskStatus,
 } from '@thiran/shared';
 import type { z } from 'zod';
@@ -46,6 +47,11 @@ export interface Store {
     to: TaskStatus,
     by: 'user' | 'system',
   ): Promise<Task>;
+
+  /** Replace the task's agent state (does not change task status). */
+  setTaskAgent(projectId: string, taskId: string, agent: TaskAgentState): Promise<Task>;
+  /** Tasks (any project) whose agent was mid-way (planning/executing/verifying). */
+  listActiveAgentTasks(): Promise<Task[]>;
 
   listConversations(projectId: string): Promise<Conversation[]>;
   getConversation(projectId: string, conversationId: string): Promise<Conversation | undefined>;

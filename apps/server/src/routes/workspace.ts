@@ -18,6 +18,8 @@ import {
   revertChangeSet,
   toView,
 } from '../agent/changes.js';
+import type { AgentEngine } from '../agent/engine.js';
+import type { ProjectLocks } from '../agent/locks.js';
 import { runCommand } from '../agent/runner.js';
 import {
   WorkspaceError,
@@ -50,11 +52,10 @@ export function registerWorkspaceRoutes(
   app: FastifyInstance,
   store: Store,
   config: AppConfig,
+  locks: ProjectLocks,
+  agent: AgentEngine,
   now: () => Date = () => new Date(),
 ): void {
-  /** Projects with a file-changing operation or command in progress. */
-  const busy = new Set<string>();
-
   async function getProject(id: string) {
     return Uuid.safeParse(id).success ? store.getProject(id) : undefined;
   }
@@ -211,6 +212,7 @@ export function registerWorkspaceRoutes(
         error: 'invalid_state',
         message: 'Only pending changes can be rejected.',
       });
+    await agent.onChangeRejected(found.project, found.cs);
     return toView((await store.getChangeSet(found.project.id, found.cs.id))!);
   });
 
@@ -224,28 +226,30 @@ export function registerWorkspaceRoutes(
       if (cs.status !== from) {
         return send(reply, 409, { error: 'invalid_state', message: `Change is ${cs.status}.` });
       }
-      if (busy.has(project.id)) {
+      const ws = await workspaceOf(project, reply);
+      if (!ws) return reply;
+      if (!locks.tryAcquire(project.id)) {
         return send(reply, 409, {
           error: 'busy',
           message: 'Another operation is running for this project.',
         });
       }
-      const ws = await workspaceOf(project, reply);
-      if (!ws) return reply;
-      busy.add(project.id);
+      let done: boolean;
       try {
         await (action === 'apply' ? applyChangeSet(ws, cs) : revertChangeSet(ws, cs));
-        await store.setChangeSetStatus(project.id, cs.id, from, to, now().toISOString());
+        done = await store.setChangeSetStatus(project.id, cs.id, from, to, now().toISOString());
         req.log.info(
           { projectId: project.id, changeId: cs.id, files: cs.files.length },
           `Change ${action}`,
         );
-        return toView((await store.getChangeSet(project.id, cs.id))!);
       } catch (e) {
         return handle(reply, e);
       } finally {
-        busy.delete(project.id);
+        locks.release(project.id);
       }
+      // An applied agent change triggers the owner-defined checks (outside the lock above).
+      if (done && action === 'apply') await agent.onChangeApplied(project, cs);
+      return toView((await store.getChangeSet(project.id, cs.id))!);
     });
   }
 
@@ -288,16 +292,14 @@ export function registerWorkspaceRoutes(
           message: 'This command is not set up.',
         });
       }
-      if (busy.has(project.id)) {
+      const ws = await workspaceOf(project, reply);
+      if (!ws) return reply;
+      if (!locks.tryAcquire(project.id)) {
         return send(reply, 409, {
           error: 'busy',
           message: 'Another operation is running for this project.',
         });
       }
-      const ws = await workspaceOf(project, reply);
-      if (!ws) return reply;
-
-      busy.add(project.id);
       const run = await store.createRun({
         id: randomUUID(),
         projectId: project.id,
@@ -328,7 +330,7 @@ export function registerWorkspaceRoutes(
         .catch((e: unknown) =>
           app.log.error({ err: e, runId: run.id }, 'Command bookkeeping failed'),
         )
-        .finally(() => busy.delete(project.id));
+        .finally(() => locks.release(project.id));
       return reply.status(202).send(run);
     },
   );

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { TASK_STATUSES } from './task-status.js';
+import { TaskAgentStateSchema } from './agent.js';
+export { COMMAND_NAMES, type CommandName } from './commands.js';
 
 // Control characters are never valid in names, paths or labels.
 // eslint-disable-next-line no-control-regex
@@ -17,9 +19,6 @@ const Argv = z
   .array(z.string().min(1).max(500).regex(NO_CONTROL_CHARS, 'Must not contain control characters'))
   .min(1)
   .max(50);
-
-export const COMMAND_NAMES = ['build', 'test', 'lint'] as const;
-export type CommandName = (typeof COMMAND_NAMES)[number];
 
 export const ProjectCommandsSchema = z
   .object({ build: Argv.optional(), test: Argv.optional(), lint: Argv.optional() })
@@ -81,6 +80,8 @@ export const TaskSchema = TaskCreateSchema.extend({
   projectId: z.uuid(),
   status: TaskStatusSchema,
   history: z.array(TaskHistoryEntrySchema),
+  /** AI agent state; null until the task is first planned. */
+  agent: TaskAgentStateSchema.nullable().default(null),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

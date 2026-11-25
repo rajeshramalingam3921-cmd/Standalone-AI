@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import {
+  AGENT_PHASE_LABEL_TA,
   TASK_STATUS_GROUP_LABEL_TA,
   USER_TASK_ACTION_LABEL_TA,
   availableUserActions,
@@ -17,6 +18,7 @@ import { ChatPanel } from './Chat';
 import { ChecksPanel } from './ChecksPanel';
 import { FilesPanel } from './FilesPanel';
 import { SettingsPanel } from './SettingsPanel';
+import { TaskDetail } from './TaskDetail';
 import { ErrorBox, fieldError } from './FieldError';
 import { StatusBadge } from './StatusBadge';
 
@@ -92,7 +94,7 @@ export function ProjectView({ route }: { route: Extract<Route, { name: 'project'
         {TAB_LABELS.map(([t, label]) => (
           <a
             key={label}
-            className={`tab ${tab === t ? 'tab-active' : ''}`}
+            className={`tab ${tab === t || (t === undefined && tab === 'task') ? 'tab-active' : ''}`}
             href={href({ name: 'project', projectId, ...(t && { tab: t }) })}
             aria-current={tab === t ? 'page' : undefined}
           >
@@ -101,7 +103,9 @@ export function ProjectView({ route }: { route: Extract<Route, { name: 'project'
         ))}
       </nav>
 
-      {tab === 'chat' ? (
+      {tab === 'task' && route.taskId ? (
+        <TaskDetail key={route.taskId} projectId={projectId} taskId={route.taskId} />
+      ) : tab === 'chat' ? (
         <ChatPanel
           projectId={projectId}
           {...(route.conversationId && { conversationId: route.conversationId })}
@@ -238,10 +242,18 @@ export function TaskItem({ task, onChanged }: { task: Task; onChanged: () => voi
   return (
     <li className="card task">
       <div className="task-head">
-        <strong>{task.title}</strong>
+        <a
+          className="task-link"
+          href={href({ name: 'project', projectId: task.projectId, tab: 'task', taskId: task.id })}
+        >
+          <strong>{task.title}</strong>
+        </a>
         <StatusBadge status={task.status} />
       </div>
       {task.description && <p className="pre muted">{task.description}</p>}
+      {task.agent && (
+        <small className="agent-phase">{AGENT_PHASE_LABEL_TA[task.agent.phase]}</small>
+      )}
       <small className="muted">புதுப்பிப்பு: {formatTime(task.updatedAt)}</small>
       <ErrorBox message={error} />
       {actions.length > 0 && (

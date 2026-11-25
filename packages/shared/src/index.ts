@@ -4,3 +4,4 @@ export * from './project.js';
 export * from './health.js';
 export * from './chat.js';
 export * from './workspace.js';
+export * from './agent.js';

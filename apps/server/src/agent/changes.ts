@@ -29,6 +29,7 @@ export async function prepareChangeSet(
     projectId: string;
     title: string;
     source: 'user' | 'agent';
+    taskId?: string | null;
     files: { path: string; content: string; baseSha256?: string | null | undefined }[];
   },
   now: Date,
@@ -73,6 +74,7 @@ export async function prepareChangeSet(
     projectId: input.projectId,
     title: input.title,
     source: input.source,
+    taskId: input.taskId ?? null,
     status: 'pending',
     files,
     createdAt: now.toISOString(),

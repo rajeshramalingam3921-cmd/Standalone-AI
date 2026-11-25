@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export type ProjectTab = 'chat' | 'files' | 'changes' | 'checks' | 'settings';
+export type ProjectTab = 'task' | 'chat' | 'files' | 'changes' | 'checks' | 'settings';
 
 export type Route =
   | { name: 'dashboard' }
@@ -11,6 +11,7 @@ export type Route =
       tab?: ProjectTab;
       conversationId?: string;
       changeId?: string;
+      taskId?: string;
       /** files tab: folder being browsed */
       dir?: string;
       /** files tab: file being viewed */
@@ -18,7 +19,7 @@ export type Route =
     };
 
 const UUID = /^[0-9a-fA-F-]{36}$/;
-const TABS: ProjectTab[] = ['chat', 'files', 'changes', 'checks', 'settings'];
+const TABS: ProjectTab[] = ['task', 'chat', 'files', 'changes', 'checks', 'settings'];
 
 function decode(s: string): string | undefined {
   try {
@@ -45,6 +46,7 @@ export function parseRoute(hash: string): Route {
     return { name: 'project', projectId, tab, conversationId: rest };
   if (tab === 'changes' && UUID.test(rest))
     return { name: 'project', projectId, tab, changeId: rest };
+  if (tab === 'task' && UUID.test(rest)) return { name: 'project', projectId, tab, taskId: rest };
   if (tab === 'files') {
     const fm = /^([df])\/(.+)$/.exec(rest);
     const p = fm && decode(fm[2]!);
@@ -66,6 +68,7 @@ export function href(route: Route): string {
       h += `/${route.tab}`;
       if (route.conversationId) h += `/${route.conversationId}`;
       else if (route.changeId) h += `/${route.changeId}`;
+      else if (route.taskId) h += `/${route.taskId}`;
       else if (route.file) h += `/f/${encodeURIComponent(route.file)}`;
       else if (route.dir) h += `/d/${encodeURIComponent(route.dir)}`;
       return h;
