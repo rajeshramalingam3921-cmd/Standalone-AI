@@ -64,3 +64,12 @@ export interface ApiError {
   message: string;
   issues?: { path: string; message: string }[];
 }
+
+/** GET /api/auth/session */
+export interface SessionStatus {
+  authenticated: boolean;
+  /** No owner password has been set yet (run the set-password command on the server). */
+  setupRequired: boolean;
+}
+
+export const LoginSchema = z.object({ password: z.string().min(1).max(1024) });

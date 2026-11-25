@@ -2,7 +2,7 @@
   "name": "thiran-ai",
   "private": true,
   "version": "0.1.0",
-  "description": "Thiran AI (திறன் AI) — personal, security-first AI development platform",
+  "description": "Thiran AI (\u0ba4\u0bbf\u0bb1\u0ba9\u0bcd AI) \u2014 personal, security-first AI development platform",
   "type": "module",
   "packageManager": "pnpm@10.28.0",
   "engines": {
@@ -18,7 +18,10 @@
     "test": "pnpm build:shared && pnpm -r test",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "dev:server": "pnpm build:shared && pnpm --filter @thiran/server dev",
-    "dev:web": "pnpm --filter @thiran/web dev"
+    "dev:web": "pnpm --filter @thiran/web dev",
+    "db:migrate": "pnpm build:shared && pnpm --filter @thiran/server cli migrate",
+    "db:import-json": "pnpm build:shared && pnpm --filter @thiran/server cli import-json",
+    "set-password": "pnpm build:shared && pnpm --filter @thiran/server cli set-password"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

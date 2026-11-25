@@ -7,8 +7,8 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
 | 1     | Inspect environment, write plan                                     | This document + ARCHITECTURE + SECURITY                                                                 | ✅ Done |
 | 2     | Monorepo, config, lint/test/build, CI, health endpoint, mobile UI   | `pnpm check` green; UI shows live server status on iPhone viewport                                      | ✅ Done |
 | 3     | Workspace UI: project dashboard, project create/select, task list   | Usable at 375px width; status badges for waiting/running/failed/completed; state survives refresh       | ✅ Done |
-| 4     | PostgreSQL + ORM, projects/tasks/events API, owner auth, rate limit | Integration tests against a real test DB; unauthenticated requests rejected; per-project data isolation | Next    |
-| 5     | AI provider layer (Claude first) + chat UI                          | Mocked-provider tests for errors/rate limits/timeouts; keys never reach the browser or logs             |         |
+| 4     | PostgreSQL + ORM, projects/tasks/events API, owner auth, rate limit | Integration tests against a real test DB; unauthenticated requests rejected; per-project data isolation | ✅ Done |
+| 5     | AI provider layer (Claude first) + chat UI                          | Mocked-provider tests for errors/rate limits/timeouts; keys never reach the browser or logs             | Next    |
 | 6     | Agent engine: sandboxed file ops, diffs, approvals, command runner  | Path-escape tests; destructive actions blocked without approval; diff shown before apply                |         |
 | 7     | Logging, audit, backups/rollback, dependency/security checks        | Audit trail for every change; rollback verified on a sample project                                     |         |
 | 8     | End-to-end workflow test, setup/usage/deploy docs                   | Plan→approve→execute→verify→report on a sample project, verified end to end                             |         |
@@ -33,3 +33,14 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
 - Verified in Chromium at iPhone 13 size: create project → add tasks → cancel (two-tap
   confirm) → filter → reload keeps screen, drafts and state → dashboard counts → server
   restart keeps data. Not yet verified on a physical iPhone.
+
+## Phase 4 notes (2026-11-25)
+
+- PostgreSQL via Drizzle ORM (ADR 0002); JSON file remains for zero-setup use. Both pass the
+  same store contract tests (9 contract + 2 import tests run against real PostgreSQL 16).
+- Owner sign-in with server-side sessions; login and API rate limits.
+- Verified end to end on PostgreSQL 16: refusal with pending migrations → `db:migrate` →
+  `db:import-json` of Phase 3 data → `set-password` in a real terminal (input not echoed) →
+  browser sign-in at iPhone 13 size → create task → reload → logout → API returns 401;
+  6th login attempt in 15 minutes returns 429; passwords never appear in logs.
+- Not yet verified: physical iPhone, Windows host, CI run on GitHub.

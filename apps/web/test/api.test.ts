@@ -68,6 +68,8 @@ describe('request', () => {
     );
     expect(r).toEqual({
       ok: false,
+      status: 400,
+      code: 'validation_error',
       message: 'சில விவரங்கள் தவறாக உள்ளன',
       issues: [{ path: 'name', message: 'req' }],
     });

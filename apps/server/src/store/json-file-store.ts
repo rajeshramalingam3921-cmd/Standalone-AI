@@ -10,14 +10,26 @@ import {
 } from '@thiran/shared';
 import { z } from 'zod';
 import { ConflictError, NotFoundError, StoreCorruptError } from './errors.js';
-import type { NewProject, NewTask, Store } from './types.js';
+import type { NewProject, NewTask, SessionRecord, Store } from './types.js';
 
-const DataSchema = z.object({
+const SessionSchema = z.object({
+  tokenHash: z.string().regex(/^[0-9a-f]{64}$/),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+});
+
+export const DataSchema = z.object({
   version: z.literal(1),
   projects: z.array(ProjectSchema),
   tasks: z.array(TaskSchema),
+  // Added in Phase 4; defaults keep Phase 3 files readable.
+  owner: z
+    .object({ passwordHash: z.string().min(1) })
+    .nullable()
+    .default(null),
+  sessions: z.array(SessionSchema).default([]),
 });
-type Data = z.output<typeof DataSchema>;
+export type Data = z.output<typeof DataSchema>;
 
 export interface JsonFileStoreOptions {
   /** File to persist to. `null` keeps data in memory only (tests). */
@@ -26,9 +38,10 @@ export interface JsonFileStoreOptions {
   newId?: () => string;
 }
 
-const empty = (): Data => ({ version: 1, projects: [], tasks: [] });
+const empty = (): Data => ({ version: 1, projects: [], tasks: [], owner: null, sessions: [] });
 
-async function load(file: string | null): Promise<Data> {
+/** Read and validate a data file. Missing file → empty data. Invalid → StoreCorruptError. */
+export async function readJsonData(file: string | null): Promise<Data> {
   if (!file) return empty();
   let raw: string;
   try {
@@ -52,7 +65,7 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
   const { file } = opts;
   const now = opts.now ?? (() => new Date());
   const newId = opts.newId ?? randomUUID;
-  let data = await load(file);
+  let data = await readJsonData(file);
 
   // Serialize every mutation so concurrent requests cannot interleave writes.
   let queue: Promise<unknown> = Promise.resolve();
@@ -80,6 +93,8 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
     b.createdAt.localeCompare(a.createdAt);
 
   return {
+    kind: 'json',
+
     // Reads return copies so callers can never mutate stored state directly.
     async listProjects() {
       return structuredClone(data.projects).sort(byNewest);
@@ -141,6 +156,48 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
         task.updatedAt = ts;
         return structuredClone(task);
       });
+    },
+
+    async getOwnerPasswordHash() {
+      return data.owner?.passwordHash;
+    },
+
+    setOwnerPasswordHash(hash) {
+      return mutate((d) => {
+        d.owner = { passwordHash: hash };
+        d.sessions = [];
+      });
+    },
+
+    createSession(session: SessionRecord) {
+      return mutate((d) => {
+        d.sessions.push({ ...session });
+      });
+    },
+
+    async getSession(tokenHash) {
+      const s = data.sessions.find((x) => x.tokenHash === tokenHash);
+      return s && { ...s };
+    },
+
+    deleteSession(tokenHash) {
+      return mutate((d) => {
+        d.sessions = d.sessions.filter((x) => x.tokenHash !== tokenHash);
+      });
+    },
+
+    deleteExpiredSessions(at) {
+      const nowIso = at.toISOString();
+      if (!data.sessions.some((x) => x.expiresAt <= nowIso)) return Promise.resolve(0);
+      return mutate((d) => {
+        const before = d.sessions.length;
+        d.sessions = d.sessions.filter((x) => x.expiresAt > nowIso);
+        return before - d.sessions.length;
+      });
+    },
+
+    async close() {
+      await queue;
     },
   };
 }

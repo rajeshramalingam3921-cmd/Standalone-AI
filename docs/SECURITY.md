@@ -17,3 +17,13 @@ Implemented now (Phase 2) is marked ✅; planned items name their phase.
 | AI output         | Model output, repo content and uploads are untrusted input; never auto-executed.           | Phase 5–6   |
 | Audit             | Append-only log of approvals, commands and file changes.                                   | Phase 6–7   |
 | Database          | Read-only inspection by default; writes/migrations need approval and a backup.             | Phase 7+    |
+
+## Reaching the server from an iPhone
+
+1. Keep `HOST=127.0.0.1`. Put an HTTPS reverse proxy that only listens on your private
+   network (e.g. a VPN/tailnet "serve" feature) in front of port 5173/4000.
+2. Add that private host name to `ALLOWED_HOSTS`.
+3. Set `NODE_ENV=production` (or `COOKIE_SECURE=true`) so the cookie is HTTPS-only.
+4. Never forward the port on your router or publish it to the internet.
+
+Known limits: rate limits are per process and reset on restart; there is no second factor yet.

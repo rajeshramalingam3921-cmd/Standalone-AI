@@ -4,11 +4,10 @@ A personal, security-first AI development platform: manage multiple software pro
 plan → approve → execute → verify → report coding tasks with AI models, and operate it
 from an iPhone.
 
-> **Status: Phase 3 (workspace).** Works today: create and browse projects, add tasks,
-> see their status, cancel them, on a mobile-first UI; data is kept in a local JSON file.
-> **Not built yet:** login, PostgreSQL, AI chat, the agent that actually runs tasks, and
-> file operations. See
-> [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: Phase 4 (persistence + sign-in).** Works today: owner sign-in, projects and
+> tasks stored in PostgreSQL (or a JSON file for zero-setup use), task status on a
+> mobile-first UI. **Not built yet:** AI chat, the agent that actually runs tasks, and
+> file operations. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Requirements
 
@@ -16,16 +15,46 @@ from an iPhone.
 - pnpm 10 (`corepack enable` then `corepack prepare pnpm@10.28.0 --activate`)
 - Git
 
-## Quick start
+## Setup
 
 ```bash
 pnpm install
-cp .env.example .env        # optional; safe defaults are built in
-pnpm dev:server             # API on http://127.0.0.1:4000
-pnpm dev:web                # UI  on http://127.0.0.1:5173 (proxies /api)
+cp .env.example .env            # then edit DATABASE_URL (or leave unset for JSON-file mode)
 ```
 
-## API (Phase 3)
+### With PostgreSQL (recommended)
+
+```bash
+# once, as a PostgreSQL admin:
+#   CREATE ROLE thiran LOGIN PASSWORD '...';  CREATE DATABASE thiran_dev OWNER thiran;
+pnpm db:migrate                 # shows pending SQL migrations and asks before applying
+pnpm set-password               # owner password (min 12 chars); input is hidden
+```
+
+Moving from the Phase 3 JSON file? After `db:migrate`, run `pnpm db:import-json`. It copies
+`.thiran-data/thiran.json` into an **empty** database and leaves the JSON file untouched.
+
+### Without PostgreSQL
+
+Leave `DATABASE_URL` unset; data goes to `apps/server/.thiran-data/thiran.json`.
+Run `pnpm set-password` the same way.
+
+### Run
+
+```bash
+pnpm dev:server                 # API on http://127.0.0.1:4000
+pnpm dev:web                    # UI  on http://127.0.0.1:5173 (proxies /api)
+```
+
+The server refuses to start if migrations are pending or the data file is corrupt — it
+never migrates or overwrites data on its own.
+
+### Backups
+
+- PostgreSQL: `pg_dump -Fc thiran_dev > thiran-$(date +%F).dump` (restore with `pg_restore`).
+- JSON mode: copy the `.thiran-data/` folder.
+
+## API
 
 | Method | Path                                             | Purpose                                                    |
 | ------ | ------------------------------------------------ | ---------------------------------------------------------- |
@@ -47,14 +76,14 @@ pnpm check   # prettier + eslint + typecheck + tests + build
 
 | Path              | Purpose                                                         |
 | ----------------- | --------------------------------------------------------------- |
-| `apps/server`     | Fastify API + JSON-file store. Loopback-only by default.        |
+| `apps/server`     | Fastify API, auth, PostgreSQL/JSON stores, admin CLI.           |
 | `apps/web`        | Mobile-first React + Vite UI.                                   |
 | `packages/shared` | Types/contracts shared by server and web (task state machine…). |
 | `docs/`           | Architecture, roadmap, security model, decision records.        |
 
 ## சுருக்கம் (தமிழில்)
 
-இப்போது project உருவாக்கலாம், task சேர்க்கலாம், அவற்றின் நிலையைப் பார்க்கலாம்.
-தரவு `.thiran-data/thiran.json`-இல் சேமிக்கப்படும் — அந்த folder-ஐ backup எடுங்கள்.
-Login, AI chat, task-ஐ உண்மையில் இயக்கும் agent ஆகியவை அடுத்த phase-களில் வரும். Server இயல்பாக `127.0.0.1`-இல் மட்டுமே கேட்கும் — internet-க்கு
-நேரடியாகத் திறக்கப்படாது.
+இப்போது கடவுச்சொல்லுடன் உள்நுழையலாம். Projects, tasks PostgreSQL-இல் சேமிக்கப்படும்.
+Database மாற்றங்கள் (migrations) நீங்கள் `pnpm db:migrate` ஓட்டி உறுதி செய்தால் மட்டுமே
+நடக்கும். கடவுச்சொல்லை server கணினியில் `pnpm set-password` மூலம் மட்டுமே அமைக்க முடியும்.
+AI chat, task-ஐ இயக்கும் agent ஆகியவை அடுத்த phase-களில் வரும்.

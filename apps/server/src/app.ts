@@ -1,5 +1,8 @@
+import cookie from '@fastify/cookie';
+import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { HealthResponse } from '@thiran/shared';
+import { registerAuth, type AuthOptions } from './auth/routes.js';
 import type { AppConfig } from './config.js';
 import { registerProjectRoutes } from './routes/projects.js';
 import type { Store } from './store/types.js';
@@ -15,9 +18,14 @@ export const LOG_REDACT_PATHS = [
   '*.password',
   '*.token',
   '*.secret',
+  'req.body.password',
 ];
 
-export function buildApp(config: AppConfig, store: Store): FastifyInstance {
+export async function buildApp(
+  config: AppConfig,
+  store: Store,
+  opts: AuthOptions = {},
+): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: config.NODE_ENV === 'test' ? 'silent' : config.LOG_LEVEL,
@@ -33,6 +41,14 @@ export function buildApp(config: AppConfig, store: Store): FastifyInstance {
     if (!allowedHosts.has(host)) {
       return reply.status(421).send({ error: 'misdirected_request', message: 'Host not allowed.' });
     }
+  });
+
+  await app.register(cookie);
+  // In-memory limits suit this single-instance personal server.
+  await app.register(rateLimit, {
+    global: true,
+    max: config.RATE_LIMIT_PER_MINUTE,
+    timeWindow: '1 minute',
   });
 
   // CSRF hardening: state-changing requests must be JSON (forces a CORS preflight,
@@ -73,7 +89,8 @@ export function buildApp(config: AppConfig, store: Store): FastifyInstance {
         .send({ error: 'internal_error', message: 'Something went wrong.' });
     }
     return reply.status(statusCode).send({
-      error: statusCode === 409 ? 'conflict' : 'request_error',
+      error:
+        statusCode === 409 ? 'conflict' : statusCode === 429 ? 'rate_limited' : 'request_error',
       message: typeof e.message === 'string' ? e.message : 'Bad request.',
     });
   });
@@ -89,6 +106,7 @@ export function buildApp(config: AppConfig, store: Store): FastifyInstance {
     uptimeSeconds: Math.round(process.uptime()),
   }));
 
+  registerAuth(app, store, config, opts);
   registerProjectRoutes(app, store);
 
   return app;
