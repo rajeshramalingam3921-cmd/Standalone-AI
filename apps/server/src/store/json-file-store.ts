@@ -3,6 +3,8 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import {
   AI_ERROR_CODES,
+  AUDIT_ACTIONS,
+  type AuditEvent,
   ProjectSchema,
   TaskSchema,
   assertTransition,
@@ -77,6 +79,20 @@ const CommandRunSchema = z.object({
   finishedAt: z.iso.datetime().nullable(),
 });
 
+const AuditEventSchema = z.object({
+  id: z.uuid(),
+  at: z.iso.datetime(),
+  actor: z.enum(['owner', 'agent', 'system']),
+  action: z.enum(AUDIT_ACTIONS),
+  projectId: z.uuid().nullable(),
+  targetType: z.string().nullable(),
+  targetId: z.string().nullable(),
+  detail: z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]),
+  ),
+});
+
 export const DataSchema = z.object({
   version: z.literal(1),
   projects: z.array(ProjectSchema),
@@ -93,6 +109,8 @@ export const DataSchema = z.object({
   // Added in Phase 6.
   changeSets: z.array(ChangeSetSchema).default([]),
   runs: z.array(CommandRunSchema).default([]),
+  // Added in Phase 7.
+  audit: z.array(AuditEventSchema).default([]),
 });
 export type Data = z.output<typeof DataSchema>;
 
@@ -113,6 +131,7 @@ const empty = (): Data => ({
   messages: [],
   changeSets: [],
   runs: [],
+  audit: [],
 });
 
 /** Read and validate a data file. Missing file → empty data. Invalid → StoreCorruptError. */
@@ -390,6 +409,23 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
         }
         return n;
       });
+    },
+
+    appendAudit(event: AuditEvent) {
+      return mutate((d) => {
+        d.audit.push(structuredClone(event));
+      });
+    },
+
+    async listAudit({ projectId, limit, before }) {
+      const out: AuditEvent[] = [];
+      for (let i = data.audit.length - 1; i >= 0 && out.length < limit; i--) {
+        const e = data.audit[i]!;
+        if (projectId && e.projectId !== projectId) continue;
+        if (before && e.at >= before) continue;
+        out.push(e);
+      }
+      return structuredClone(out);
     },
 
     async getOwnerPasswordHash() {

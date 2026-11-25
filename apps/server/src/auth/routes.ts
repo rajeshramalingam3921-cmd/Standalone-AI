@@ -85,6 +85,11 @@ export function registerAuth(
       }
       if (!(await verifyPassword(parsed.data.password, stored))) {
         req.log.warn({ ip: req.ip }, 'Failed login attempt');
+        await app.audit.record({
+          actor: 'system',
+          action: 'auth.login_failed',
+          detail: { ip: req.ip },
+        });
         return reply.status(401).send({
           error: 'invalid_credentials',
           message: 'Incorrect password.',
@@ -101,6 +106,7 @@ export function registerAuth(
         expiresAt: expiresAt.toISOString(),
       });
       req.log.info({ ip: req.ip }, 'Owner signed in');
+      await app.audit.record({ actor: 'owner', action: 'auth.login', detail: { ip: req.ip } });
       return reply
         .setCookie(SESSION_COOKIE, token, { ...cookieOptions, expires: expiresAt })
         .send({ authenticated: true, setupRequired: false } satisfies SessionStatus);
@@ -110,6 +116,7 @@ export function registerAuth(
   app.post('/api/auth/logout', async (req, reply) => {
     const token = req.cookies[SESSION_COOKIE];
     if (token && token.length <= 200) await store.deleteSession(hashToken(token));
+    await app.audit.record({ actor: 'owner', action: 'auth.logout', detail: { ip: req.ip } });
     return reply
       .clearCookie(SESSION_COOKIE, cookieOptions)
       .send({ authenticated: false, setupRequired: false } satisfies SessionStatus);

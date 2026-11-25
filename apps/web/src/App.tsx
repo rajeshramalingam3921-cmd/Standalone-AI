@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { UNAUTHORIZED_EVENT, api } from './api';
+import { AuditPage } from './components/AuditPage';
 import { Dashboard } from './components/Dashboard';
+import { SystemPage } from './components/SystemPage';
 import { ErrorBox } from './components/FieldError';
 import { HealthPill } from './components/HealthPill';
 import { Login, SetupRequired } from './components/Login';
@@ -86,6 +88,13 @@ export function App() {
         {auth.state === 'signed-in' && (
           <>
             {route.name === 'dashboard' && <Dashboard />}
+            {route.name === 'system' && <SystemPage />}
+            {route.name === 'audit' && (
+              <AuditPage
+                key={route.projectId ?? 'all'}
+                {...(route.projectId && { projectId: route.projectId })}
+              />
+            )}
             {route.name === 'new-project' && <NewProject />}
             {route.name === 'project' && <ProjectView key={route.projectId} route={route} />}
           </>

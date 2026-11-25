@@ -55,7 +55,16 @@ export function registerProjectRoutes(
   app.post('/api/projects', async (req, reply) => {
     const parsed = ProjectCreateSchema.safeParse(req.body);
     if (!parsed.success) return validationError(reply, parsed.error);
-    return reply.status(201).send(await store.createProject(parsed.data));
+    const project = await store.createProject(parsed.data);
+    await app.audit.record({
+      actor: 'owner',
+      action: 'project.created',
+      projectId: project.id,
+      targetType: 'project',
+      targetId: project.id,
+      detail: { name: project.name },
+    });
+    return reply.status(201).send(project);
   });
 
   app.get<{ Params: { projectId: string } }>('/api/projects/:projectId', async (req, reply) => {
@@ -75,7 +84,26 @@ export function registerProjectRoutes(
       Object.entries(parsed.data).filter(([, v]) => v !== undefined),
     ) as typeof parsed.data;
     req.log.info({ projectId, fields: Object.keys(patch) }, 'Project updated');
-    return store.updateProject(projectId, patch as Parameters<Store['updateProject']>[1]);
+    const updated = await store.updateProject(
+      projectId,
+      patch as Parameters<Store['updateProject']>[1],
+    );
+    // Record which fields changed (and the new commands/path, which matter for security).
+    await app.audit.record({
+      actor: 'owner',
+      action: 'project.updated',
+      projectId,
+      targetType: 'project',
+      targetId: projectId,
+      detail: {
+        fields: Object.keys(patch),
+        ...(patch.workspacePath !== undefined && { workspacePath: patch.workspacePath }),
+        ...(patch.commands !== undefined && {
+          commands: Object.entries(patch.commands).map(([k, v]) => `${k}: ${(v ?? []).join(' ')}`),
+        }),
+      },
+    });
+    return updated;
   });
 
   app.get<{ Params: { projectId: string } }>(
@@ -98,7 +126,16 @@ export function registerProjectRoutes(
       }
       const parsed = TaskCreateSchema.safeParse(req.body);
       if (!parsed.success) return validationError(reply, parsed.error);
-      return reply.status(201).send(await store.createTask(projectId, parsed.data));
+      const task = await store.createTask(projectId, parsed.data);
+      await app.audit.record({
+        actor: 'owner',
+        action: 'task.created',
+        projectId,
+        targetType: 'task',
+        targetId: task.id,
+        detail: { title: task.title },
+      });
+      return reply.status(201).send(task);
     },
   );
 
@@ -131,6 +168,14 @@ export function registerProjectRoutes(
       }
       // The status change is atomic in the store, so a double tap cannot start two jobs.
       const updated = await store.transitionTask(projectId, taskId, action.to, 'user');
+      await app.audit.record({
+        actor: 'owner',
+        action: 'task.action',
+        projectId,
+        targetType: 'task',
+        targetId: taskId,
+        detail: { action: parsed.data.action, from: task.status, to: updated.status },
+      });
       const project = (await store.getProject(projectId))!;
       await agent.onUserAction(project, updated, parsed.data.action, parsed.data.feedback);
       return (await store.getTask(projectId, taskId))!;

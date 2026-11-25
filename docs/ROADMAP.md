@@ -10,8 +10,8 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
 | 4     | PostgreSQL + ORM, projects/tasks/events API, owner auth, rate limit | Integration tests against a real test DB; unauthenticated requests rejected; per-project data isolation | ✅ Done |
 | 5     | AI provider layer (Claude first) + chat UI                          | Mocked-provider tests for errors/rate limits/timeouts; keys never reach the browser or logs             | ✅ Done |
 | 6     | Agent engine: sandboxed file ops, diffs, approvals, command runner  | Path-escape tests; destructive actions blocked without approval; diff shown before apply                | ✅ Done |
-| 7     | Logging, audit, backups/rollback, dependency/security checks        | Audit trail for every change; rollback verified on a sample project                                     |         |
-| 8     | End-to-end workflow test, setup/usage/deploy docs                   | Plan→approve→execute→verify→report on a sample project, verified end to end                             |         |
+| 7     | Logging, audit, backups/rollback, dependency/security checks        | Audit trail for every change; rollback verified on a sample project                                     | ✅ Done |
+| 8     | End-to-end workflow test, setup/usage/deploy docs                   | Plan→approve→execute→verify→report on a sample project, verified end to end                             | Next    |
 | Later | Templates (business site, dashboard, POS, ERP, accounting, …)       | Each template builds and passes its own tests; no unverified compliance claims                          |         |
 
 ## Phase 1 findings (2026-11-24)
@@ -87,3 +87,16 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
   restart recovery could hang on an already-aborted run; `/task/` URLs fell back to the
   dashboard.
 - **Not verified: a real Claude agent run** (no API key here), Windows, physical iPhone.
+
+## Phase 7 notes (2026-11-25)
+
+- Audit log (`audit_events`, migration `0004_audit` with an append-only trigger) wired into
+  auth, projects, tasks, changes, commands, the agent and the CLI. Audit and System pages.
+- `pnpm backup` (pg_dump custom format or validated JSON copy, 0600), `pnpm restore` (JSON mode,
+  refuses while the server runs, keeps a pre-restore copy), `docs/OPERATIONS.md`.
+- Secret scan (`scripts/check-secrets.mjs`) in `pnpm check`; `pnpm audit:deps` in CI; patched a
+  moderate dev-only advisory (esbuild inside drizzle-kit) with a pnpm override.
+- Verified for real: backup before migration → migrate → backup → restore into a fresh database
+  (identical row counts, server starts on it) → `DELETE FROM audit_events` refused.
+- Bugs found by that run and fixed: a backup taken before a schema migration exited with an
+  error (audit table not there yet); `.dump` files were world-readable.

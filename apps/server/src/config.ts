@@ -74,6 +74,8 @@ const EnvSchema = z
     /** Input+output tokens per agent run. */
     AGENT_TOKEN_BUDGET: z.coerce.number().int().min(1_000).max(20_000_000).default(1_500_000),
     AGENT_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(7_200_000).default(1_200_000),
+    /** Where `pnpm backup` writes backups. Keep it out of the repository and copy it off-machine. */
+    BACKUP_DIR: z.string().min(1).default('.thiran-backups'),
     COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(600_000),
     COMMAND_OUTPUT_MAX: z.coerce.number().int().min(1_000).max(1_000_000).default(64_000),
     /** Host names this server answers to (comma-separated). Guards against DNS rebinding. */

@@ -3,6 +3,7 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { HealthResponse } from '@thiran/shared';
 import { AgentEngine } from './agent/engine.js';
+import { AuditLog } from './audit.js';
 import { ProjectLocks } from './agent/locks.js';
 import { createProvider } from './ai/provider.js';
 import type { AiProvider } from './ai/types.js';
@@ -10,6 +11,7 @@ import { registerAuth } from './auth/routes.js';
 import type { AppConfig } from './config.js';
 import { registerChatRoutes } from './routes/chat.js';
 import { registerProjectRoutes } from './routes/projects.js';
+import { registerSystemRoutes } from './routes/system.js';
 import { registerWorkspaceRoutes } from './routes/workspace.js';
 import type { Store } from './store/types.js';
 import { VERSION } from './version.js';
@@ -119,6 +121,8 @@ export async function buildApp(
     uptimeSeconds: Math.round(process.uptime()),
   }));
 
+  const audit = new AuditLog(store, app.log, opts.now);
+  app.decorate('audit', audit);
   registerAuth(app, store, config, opts.now ? { now: opts.now } : {});
   const provider = opts.provider ?? createProvider(config);
   const locks = new ProjectLocks();
@@ -128,6 +132,7 @@ export async function buildApp(
     provider,
     locks,
     log: app.log,
+    audit,
     ...(opts.now && { now: opts.now }),
   });
   app.decorate('agent', agent);
@@ -135,6 +140,7 @@ export async function buildApp(
   registerProjectRoutes(app, store, agent);
   registerChatRoutes(app, store, config, provider, opts.now);
   registerWorkspaceRoutes(app, store, config, locks, agent, opts.now);
+  registerSystemRoutes(app, store, config, provider, opts.now);
 
   return app;
 }
@@ -142,5 +148,6 @@ export async function buildApp(
 declare module 'fastify' {
   interface FastifyInstance {
     agent: AgentEngine;
+    audit: AuditLog;
   }
 }

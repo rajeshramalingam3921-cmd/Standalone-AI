@@ -662,3 +662,48 @@ details summary {
 .chip.mono {
   margin-right: 4px;
 }
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: -4px 0 12px;
+}
+.quick-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.audit-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.audit-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.audit-owner {
+  border-left-color: var(--accent);
+}
+.audit-agent {
+  border-left-color: var(--waiting);
+}
+.audit-system {
+  border-left-color: var(--muted);
+}
+.system-meta dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}

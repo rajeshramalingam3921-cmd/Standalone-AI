@@ -5,3 +5,4 @@ export * from './health.js';
 export * from './chat.js';
 export * from './workspace.js';
 export * from './agent.js';
+export * from './audit.js';

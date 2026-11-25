@@ -5,6 +5,8 @@ export type ProjectTab = 'task' | 'chat' | 'files' | 'changes' | 'checks' | 'set
 export type Route =
   | { name: 'dashboard' }
   | { name: 'new-project' }
+  | { name: 'audit'; projectId?: string }
+  | { name: 'system' }
   | {
       name: 'project';
       projectId: string;
@@ -33,6 +35,10 @@ function decode(s: string): string | undefined {
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '') || '/';
   if (path === '/projects/new') return { name: 'new-project' };
+  if (path === '/system') return { name: 'system' };
+  if (path === '/audit') return { name: 'audit' };
+  const am = /^\/audit\/([^/]+)$/.exec(path);
+  if (am && UUID.test(am[1]!)) return { name: 'audit', projectId: am[1]! };
   const m = /^\/projects\/([^/]+)(?:\/([a-z]+)(?:\/(.*))?)?$/.exec(path);
   if (!m || !UUID.test(m[1]!)) return { name: 'dashboard' };
   const projectId = m[1]!;
@@ -62,6 +68,10 @@ export function href(route: Route): string {
       return '#/';
     case 'new-project':
       return '#/projects/new';
+    case 'system':
+      return '#/system';
+    case 'audit':
+      return route.projectId ? `#/audit/${route.projectId}` : '#/audit';
     case 'project': {
       let h = `#/projects/${route.projectId}`;
       if (!route.tab) return h;

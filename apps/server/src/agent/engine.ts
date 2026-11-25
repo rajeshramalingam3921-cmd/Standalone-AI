@@ -12,6 +12,7 @@ import {
   type TaskStatus,
 } from '@thiran/shared';
 import { AiAbortedError, AiProviderError, type AiProvider } from '../ai/types.js';
+import type { AuditLog } from '../audit.js';
 import type { AppConfig } from '../config.js';
 import type { Store } from '../store/types.js';
 import { NoChangesError, prepareChangeSet, toView } from './changes.js';
@@ -50,6 +51,7 @@ export interface EngineDeps {
   provider: AiProvider;
   locks: ProjectLocks;
   log: FastifyBaseLogger;
+  audit?: AuditLog;
   now?: () => Date;
 }
 
@@ -249,6 +251,14 @@ export class AgentEngine {
         this.log(a, 'info', 'திட்டம் தயார்: உங்கள் அனுமதிக்காகக் காத்திருக்கிறது');
       });
       await this.transition(t, 'awaiting_approval');
+      await this.d.audit?.record({
+        actor: 'agent',
+        action: 'agent.plan_ready',
+        projectId: fresh.id,
+        targetType: 'task',
+        targetId: taskId,
+        detail: { files: plan.files, checks: plan.checks },
+      });
     } catch (e) {
       await this.handleJobError(fresh, taskId, e);
     }
@@ -324,6 +334,14 @@ export class AgentEngine {
         throw e;
       }
       await this.d.store.createChangeSet(cs);
+      await this.d.audit?.record({
+        actor: 'agent',
+        action: 'agent.change_proposed',
+        projectId: fresh.id,
+        targetType: 'change',
+        targetId: cs.id,
+        detail: { taskId, paths: cs.files.map((f) => f.path) },
+      });
       await this.update({ projectId: fresh.id, id: taskId }, (a) => {
         a.changeSetId = cs.id;
         a.summary = session.summary ?? null;
@@ -389,6 +407,14 @@ export class AgentEngine {
           timeoutMs: this.d.config.COMMAND_TIMEOUT_MS,
           maxOutput: this.d.config.COMMAND_OUTPUT_MAX,
         });
+        await this.d.audit?.record({
+          actor: 'system',
+          action: 'command.finished',
+          projectId: fresh.id,
+          targetType: 'run',
+          targetId: run.id,
+          detail: { name, status: r.status, exitCode: r.exitCode, taskId },
+        });
         await this.d.store.updateRun(fresh.id, run.id, {
           status: r.status,
           exitCode: r.exitCode,
@@ -451,6 +477,14 @@ export class AgentEngine {
       this.log(a, outcome === 'completed' ? 'info' : 'error', reason);
     });
     await this.transition(t, outcome);
+    await this.d.audit?.record({
+      actor: 'agent',
+      action: 'agent.finished',
+      projectId: project.id,
+      targetType: 'task',
+      targetId: taskId,
+      detail: { outcome, reason },
+    });
   }
 
   private async transition(task: Pick<Task, 'projectId' | 'id'>, to: TaskStatus) {

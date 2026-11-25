@@ -19,6 +19,8 @@ import {
   type ProjectUpdateInput,
   type WorkspaceInfo,
   type AiStatus,
+  type AuditEvent,
+  type SystemStatus,
   type ChatMessage,
   type ChatSendInput,
   type ChatStreamEvent,
@@ -192,6 +194,14 @@ export const api = {
     request<SessionStatus>('/api/auth/login', { method: 'POST', body: { password } }),
   logout: () => request<SessionStatus>('/api/auth/logout', { method: 'POST', body: {} }),
   aiStatus: () => request<AiStatus>('/api/ai/status'),
+  systemStatus: () => request<SystemStatus>('/api/system/status'),
+  audit: (q: { projectId?: string; before?: string; limit?: number }) => {
+    const p = new URLSearchParams();
+    if (q.projectId) p.set('projectId', q.projectId);
+    if (q.before) p.set('before', q.before);
+    p.set('limit', String(q.limit ?? 50));
+    return request<AuditEvent[]>(`/api/audit?${p.toString()}`);
+  },
   updateProject: (id: string, patch: ProjectUpdateInput) =>
     request<ProjectT>(`/api/projects/${enc(id)}`, { method: 'PATCH', body: patch }),
   workspace: (id: string) => request<WorkspaceInfo>(`/api/projects/${enc(id)}/workspace`),

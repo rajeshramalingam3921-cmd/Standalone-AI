@@ -18,6 +18,10 @@ export function Dashboard() {
         </a>
       </div>
 
+      <nav className="quick-links" aria-label="System">
+        <a href={href({ name: 'system' })}>⚙️ System நிலை</a>
+        <a href={href({ name: 'audit' })}>📜 செயல்பாட்டுப் பதிவு</a>
+      </nav>
       {projects.state === 'loading' && <p className="muted">ஏற்றுகிறது…</p>}
       {projects.state === 'error' && (
         <>

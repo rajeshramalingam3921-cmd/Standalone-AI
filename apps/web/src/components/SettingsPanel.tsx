@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { COMMAND_NAMES, type CommandName, type Project } from '@thiran/shared';
 import { api } from '../api';
+import { href } from '../router';
 import { useResource } from '../useResource';
 import { ErrorBox, fieldError } from './FieldError';
 import { WorkspaceNotice } from './WorkspaceNotice';
@@ -84,6 +85,7 @@ export function SettingsPanel({ project, onSaved }: { project: Project; onSaved:
           <ErrorBox message={fieldError(failure?.issues, `commands.${n}`)} />
         </label>
       ))}
+      <a href={href({ name: 'audit', projectId: project.id })}>இந்த project-இன் செயல்பாட்டுப் பதிவு →</a>
       <button type="submit" className="button" disabled={saving}>
         {saving ? 'சேமிக்கிறது…' : 'சேமி'}
       </button>

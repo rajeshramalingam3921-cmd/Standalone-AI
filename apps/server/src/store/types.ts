@@ -1,4 +1,5 @@
 import type {
+  AuditEvent,
   ChangeSet,
   ChangeSetStatus,
   CommandRun,
@@ -87,6 +88,11 @@ export interface Store {
   listRuns(projectId: string, limit?: number): Promise<CommandRun[]>;
   /** Mark runs left "running" by a previous server process as errored. */
   failInterruptedRuns(at: string): Promise<number>;
+
+  /** Append-only: there is deliberately no update or delete. */
+  appendAudit(event: AuditEvent): Promise<void>;
+  /** Newest first. `before` = ISO time cursor for paging. */
+  listAudit(q: { projectId?: string; limit: number; before?: string }): Promise<AuditEvent[]>;
 
   getOwnerPasswordHash(): Promise<string | undefined>;
   /** Sets the owner password and signs out every existing session. */

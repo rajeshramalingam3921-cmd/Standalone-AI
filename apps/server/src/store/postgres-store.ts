@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, lte, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import {
   assertTransition,
   type AiErrorCode,
+  type AuditAction,
+  type AuditActor,
+  type AuditEvent,
   type ChangeSet,
   type ChangeSetStatus,
   type CommandName,
@@ -19,6 +22,7 @@ import {
 } from '@thiran/shared';
 import * as schema from '../db/schema.js';
 import {
+  auditEvents,
   changeSets,
   chatMessages,
   commandRuns,
@@ -441,6 +445,33 @@ export function createPostgresStore(opts: PostgresStoreOptions): Store {
       return res.rowCount ?? 0;
     },
 
+    async appendAudit(e: AuditEvent) {
+      await db.insert(auditEvents).values({ ...e, at: new Date(e.at) });
+    },
+
+    async listAudit({ projectId, limit, before }) {
+      const conds = [
+        projectId ? eq(auditEvents.projectId, projectId) : undefined,
+        before ? lt(auditEvents.at, new Date(before)) : undefined,
+      ].filter((c) => c !== undefined);
+      const rows = await db
+        .select()
+        .from(auditEvents)
+        .where(conds.length ? and(...conds) : undefined)
+        .orderBy(desc(auditEvents.at))
+        .limit(limit);
+      return rows.map((r) => ({
+        id: r.id,
+        at: r.at.toISOString(),
+        actor: r.actor as AuditActor,
+        action: r.action as AuditAction,
+        projectId: r.projectId,
+        targetType: r.targetType,
+        targetId: r.targetId,
+        detail: r.detail,
+      }));
+    },
+
     async getOwnerPasswordHash() {
       const [row] = await db.select().from(owner).where(eq(owner.id, 1));
       return row?.passwordHash;
@@ -542,6 +573,9 @@ export async function importSnapshot(
         startedAt: new Date(r.startedAt),
         finishedAt: r.finishedAt ? new Date(r.finishedAt) : null,
       });
+    }
+    for (const e of data.audit) {
+      await tx.insert(auditEvents).values({ ...e, at: new Date(e.at) });
     }
     if (data.owner) {
       await tx

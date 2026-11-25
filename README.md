@@ -4,12 +4,11 @@ A personal, security-first AI development platform: manage multiple software pro
 plan → approve → execute → verify → report coding tasks with AI models, and operate it
 from an iPhone.
 
-> **Status: Phase 6 (controlled AI agent).** Works today: sign-in, projects, AI chat, and an
-> AI agent that reads your authorized project folder, proposes a plan, waits for your
-> approval, proposes file changes as a diff, waits again, then runs your own checks and
-> writes a Tamil report. The agent never writes files or runs commands by itself.
-> **Not yet verified with the real Claude API** (no key in the build environment).
-> See [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: Phase 7 (audit, backups, checks).** Works today: sign-in, projects, AI chat, a
+> controlled AI agent (plan → approve → diff → approve → your checks → Tamil report), an
+> append-only audit log, `pnpm backup` / restore, and secret + dependency checks in CI.
+> **Not yet verified with the real Claude API, on Windows, or on a physical iPhone.**
+> See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Requirements
 
@@ -96,6 +95,8 @@ never migrates or overwrites data on its own.
 | Method | Path                                                  | Purpose                                                    |
 | ------ | ----------------------------------------------------- | ---------------------------------------------------------- |
 | GET    | `/api/health`                                         | Server status                                              |
+| GET    | `/api/audit?projectId=&before=&limit=`                | Audit log, newest first                                    |
+| GET    | `/api/system/status`                                  | Store, AI, roots, last backup                              |
 | GET    | `/api/projects`                                       | Projects with task counts                                  |
 | POST   | `/api/projects`                                       | Create project                                             |
 | GET    | `/api/projects/:projectId`                            | Project details                                            |
@@ -111,7 +112,9 @@ never migrates or overwrites data on its own.
 ## Quality gate
 
 ```bash
-pnpm check   # prettier + eslint + typecheck + tests + build
+pnpm check        # secret scan + prettier + eslint + typecheck + tests + build
+pnpm audit:deps   # known-vulnerable dependencies
+pnpm backup       # see docs/OPERATIONS.md for restore
 ```
 
 ## Layout
@@ -125,7 +128,8 @@ pnpm check   # prettier + eslint + typecheck + tests + build
 
 ## சுருக்கம் (தமிழில்)
 
-இப்போது ஒரு task-ஐ AI agent-இடம் கொடுக்கலாம். அது files-ஐப் படித்துத் திட்டம் தரும். நீங்கள்
-அனுமதித்தால் மாற்றங்களை diff ஆகப் பரிந்துரைக்கும். நீங்கள் அனுமதித்தால் மட்டுமே எழுதப்படும்.
-பிறகு உங்கள் tests ஓடும்; எல்லாம் வெற்றியானால் மட்டுமே "முடிந்தது" என்று சொல்லும். தமிழில்
-அறிக்கை கிடைக்கும். AI தானாக எதையும் எழுதாது, எந்த command-ஐயும் ஓட்டாது.
+திறன் AI-இல் இப்போது: உள்நுழைவு, projects, AI chat, கட்டுப்படுத்தப்பட்ட AI agent (திட்டம் → உங்கள்
+அனுமதி → diff → உங்கள் அனுமதி → உங்கள் tests → தமிழ் அறிக்கை). ஒவ்வொரு முக்கியச் செயலும்
+மாற்ற முடியாத "செயல்பாட்டுப் பதிவில்" சேமிக்கப்படும். `pnpm backup` மூலம் backup எடுக்கலாம்;
+7 நாட்களுக்கு மேல் backup இல்லையென்றால் System பக்கம் எச்சரிக்கும். Backup-ஐ வேறு disk-க்கு
+நகலெடுக்க மறக்காதீர்கள்.

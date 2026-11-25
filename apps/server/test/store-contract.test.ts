@@ -29,7 +29,7 @@ afterAll(async () => {
 
 async function resetPg() {
   await pool!.query(
-    'TRUNCATE command_runs, change_sets, chat_messages, conversations, tasks, projects, sessions, owner',
+    'TRUNCATE audit_events, command_runs, change_sets, chat_messages, conversations, tasks, projects, sessions, owner',
   );
 }
 
@@ -302,6 +302,29 @@ describe.each(impls)('Store contract: %s', (_name, make) => {
     await expect(s.setTaskAgent(other.id, t1.id, state)).rejects.toBeInstanceOf(NotFoundError);
   });
 
+  it('appends audit events and lists them newest first, filtered and paged', async () => {
+    const p = await s.createProject(project('P'));
+    const ev = (i: number, projectId: string | null) => ({
+      id: `7777777${i}-7777-4777-8777-777777777777`,
+      at: `2026-01-01T00:00:0${i}.000Z`,
+      actor: 'owner' as const,
+      action: 'project.updated' as const,
+      projectId,
+      targetType: 'project',
+      targetId: projectId,
+      detail: { fields: ['name'], n: i, ok: true, none: null },
+    });
+    for (let i = 1; i <= 4; i++) await s.appendAudit(ev(i, i === 4 ? null : p.id));
+    expect((await s.listAudit({ limit: 10 })).map((e) => e.detail.n)).toEqual([4, 3, 2, 1]);
+    expect((await s.listAudit({ limit: 10, projectId: p.id })).map((e) => e.detail.n)).toEqual([
+      3, 2, 1,
+    ]);
+    expect(
+      (await s.listAudit({ limit: 2, before: '2026-01-01T00:00:03.000Z' })).map((e) => e.detail.n),
+    ).toEqual([2, 1]);
+    expect((await s.listAudit({ limit: 1 }))[0]).toEqual(ev(4, null));
+  });
+
   it('manages owner password and sessions', async () => {
     expect(await s.getOwnerPasswordHash()).toBeUndefined();
     await s.setOwnerPasswordHash('scrypt$hash1');
@@ -336,6 +359,20 @@ describe.each(impls)('Store contract: %s', (_name, make) => {
   });
 });
 
+describe.runIf(PG_URL)('audit table is append-only in PostgreSQL', () => {
+  it('rejects UPDATE and DELETE at the database level', async () => {
+    await resetPg();
+    await pool!.query(
+      `INSERT INTO audit_events (id, at, actor, action, detail) VALUES ('88888888-8888-4888-8888-888888888888', now(), 'owner', 'auth.login', '{}')`,
+    );
+    await expect(pool!.query(`UPDATE audit_events SET action = 'x'`)).rejects.toThrow(
+      /append-only/,
+    );
+    await expect(pool!.query(`DELETE FROM audit_events`)).rejects.toThrow(/append-only/);
+    expect((await pool!.query('SELECT count(*)::int AS n FROM audit_events')).rows[0].n).toBe(1);
+  });
+});
+
 describe.runIf(PG_URL)('JSON → PostgreSQL import', () => {
   beforeEach(resetPg);
 
@@ -356,6 +393,7 @@ describe.runIf(PG_URL)('JSON → PostgreSQL import', () => {
       messages: [],
       changeSets: [],
       runs: [],
+      audit: [],
     };
     expect(await importSnapshot(pool!, snapshot)).toEqual({ projects: 1, tasks: 1 });
 
@@ -378,6 +416,7 @@ describe.runIf(PG_URL)('JSON → PostgreSQL import', () => {
         messages: [],
         changeSets: [],
         runs: [],
+        audit: [],
       }),
     ).rejects.toBeInstanceOf(ConflictError);
   });

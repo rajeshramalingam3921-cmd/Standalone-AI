@@ -3,8 +3,13 @@
  *   pnpm db:migrate [--yes]          apply pending PostgreSQL migrations
  *   pnpm set-password                set or change the owner password (signs out all sessions)
  *   pnpm db:import-json [--yes]      copy JSON-file data into an empty PostgreSQL database
+ *   pnpm backup                      JSON copy or pg_dump into BACKUP_DIR
+ *   pnpm restore <file> [--yes]      restore a JSON backup (JSON mode, server stopped)
  */
+import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
+import type { AuditInput } from './audit.js';
+import { createBackup, restoreJsonBackup } from './backup.js';
 import { loadConfig } from './config.js';
 import { loadEnvFile } from './env-file.js';
 import { applyMigrations, pendingMigrations } from './db/migrations.js';
@@ -12,6 +17,7 @@ import { checkPasswordStrength, hashPassword } from './auth/password.js';
 import { readJsonData } from './store/json-file-store.js';
 import { jsonDataFile, openStore } from './store/open.js';
 import { createPool, importSnapshot } from './store/postgres-store.js';
+import type { Store } from './store/types.js';
 
 const out = (s: string) => process.stdout.write(`${s}\n`);
 
@@ -74,6 +80,7 @@ async function setPasswordCmd() {
     if (problem) throw new Error(problem);
     if ((await ask('Repeat password: ', true)) !== pw) throw new Error('Passwords do not match.');
     await store.setOwnerPasswordHash(await hashPassword(pw));
+    await audit(store, { actor: 'owner', action: 'auth.password_set', detail: { via: 'cli' } });
     out(`Owner password saved (${store.kind} store). All existing sessions were signed out.`);
   } finally {
     await store.close();
@@ -96,10 +103,63 @@ async function importJsonCmd(yes: boolean) {
     const pending = await pendingMigrations(pool);
     if (pending.length) throw new Error('Run `pnpm db:migrate` first.');
     const r = await importSnapshot(pool, data);
+    const { createPostgresStore } = await import('./store/postgres-store.js');
+    await audit(createPostgresStore({ pool }), {
+      actor: 'owner',
+      action: 'data.imported',
+      detail: { projects: r.projects, tasks: r.tasks },
+    });
     out(`Imported ${r.projects} project(s) and ${r.tasks} task(s).`);
   } finally {
     await pool.end();
   }
+}
+
+async function audit(store: { appendAudit: Store['appendAudit'] }, e: AuditInput) {
+  await store.appendAudit({
+    id: randomUUID(),
+    at: new Date().toISOString(),
+    actor: e.actor,
+    action: e.action,
+    projectId: null,
+    targetType: null,
+    targetId: null,
+    detail: e.detail ?? {},
+  });
+}
+
+async function backupCmd() {
+  const config = loadConfig();
+  const r = await createBackup(config);
+  out(`Backup written: ${r.file} (${r.bytes} bytes, ${r.kind}).`);
+  out('Copy the backup folder to another disk or cloud storage you control.');
+  // The backup itself succeeded. Recording it must never turn that into a failure:
+  // e.g. the backup taken right before a migration runs against the old schema.
+  try {
+    const store = await openStore(config, { allowPending: true });
+    try {
+      await audit(store, {
+        actor: 'system',
+        action: 'backup.created',
+        detail: { file: r.file.split(/[\\/]/).pop()!, bytes: r.bytes },
+      });
+    } finally {
+      await store.close();
+    }
+  } catch {
+    out('(Audit entry not recorded — the database schema may be older; run `pnpm db:migrate`.)');
+  }
+}
+
+async function restoreCmd(file: string | undefined, yes: boolean) {
+  if (!file) throw new Error('Usage: pnpm restore <backup-file.json> [--yes]');
+  const config = loadConfig();
+  out(
+    `Restore ${file} over the current data. The current file is saved first as a pre-restore backup.`,
+  );
+  if (!(await confirm('Continue?', yes))) return out('Cancelled.');
+  const r = await restoreJsonBackup(config, file);
+  out(`Restored. Previous data saved as: ${r.safetyCopy ?? '(there was no previous data file)'}`);
 }
 
 async function main() {
@@ -113,8 +173,15 @@ async function main() {
       return setPasswordCmd();
     case 'import-json':
       return importJsonCmd(yes);
+    case 'backup':
+      return backupCmd();
+    case 'restore':
+      return restoreCmd(
+        args.find((a) => !a.startsWith('--')),
+        yes,
+      );
     default:
-      out('Usage: cli <migrate|set-password|import-json> [--yes]');
+      out('Usage: cli <migrate|set-password|import-json|backup|restore <file>> [--yes]');
       process.exitCode = 1;
   }
 }

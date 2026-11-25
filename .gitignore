@@ -14,3 +14,4 @@ coverage/
 /workspaces/
 /data/
 .thiran-data/
+.thiran-backups/

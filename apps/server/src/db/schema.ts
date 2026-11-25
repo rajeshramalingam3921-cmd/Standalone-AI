@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   TASK_STATUSES,
+  type AuditDetail,
   type ChangeFile,
   type ProjectCommands,
   type TaskAgentState,
@@ -168,5 +169,25 @@ export const commandRuns = pgTable(
       'command_runs_status_check',
       sql`${t.status} IN ('running', 'passed', 'failed', 'timeout', 'error')`,
     ),
+  ],
+);
+
+/** Append-only (UPDATE/DELETE blocked by a trigger in migration 0004). */
+export const auditEvents = pgTable(
+  'audit_events',
+  {
+    id: uuid('id').primaryKey(),
+    at: ts('at'),
+    actor: text('actor').notNull(),
+    action: text('action').notNull(),
+    projectId: uuid('project_id'),
+    targetType: text('target_type'),
+    targetId: text('target_id'),
+    detail: jsonb('detail').$type<AuditDetail>().notNull(),
+  },
+  (t) => [
+    index('audit_events_at_idx').on(t.at),
+    index('audit_events_project_at_idx').on(t.projectId, t.at),
+    check('audit_events_actor_check', sql`${t.actor} IN ('owner', 'agent', 'system')`),
   ],
 );

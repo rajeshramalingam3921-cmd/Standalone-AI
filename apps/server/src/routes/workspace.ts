@@ -171,7 +171,16 @@ export function registerWorkspaceRoutes(
         },
         now(),
       );
-      return reply.status(201).send(toView(await store.createChangeSet(cs)));
+      await store.createChangeSet(cs);
+      await app.audit.record({
+        actor: 'owner',
+        action: 'change.created',
+        projectId: project.id,
+        targetType: 'change',
+        targetId: cs.id,
+        detail: { title: cs.title, paths: cs.files.map((f) => f.path) },
+      });
+      return reply.status(201).send(toView(cs));
     } catch (e) {
       return handle(reply, e);
     }
@@ -212,6 +221,14 @@ export function registerWorkspaceRoutes(
         error: 'invalid_state',
         message: 'Only pending changes can be rejected.',
       });
+    await app.audit.record({
+      actor: 'owner',
+      action: 'change.rejected',
+      projectId: found.project.id,
+      targetType: 'change',
+      targetId: found.cs.id,
+      detail: { source: found.cs.source, paths: found.cs.files.map((f) => f.path) },
+    });
     await agent.onChangeRejected(found.project, found.cs);
     return toView((await store.getChangeSet(found.project.id, found.cs.id))!);
   });
@@ -243,9 +260,29 @@ export function registerWorkspaceRoutes(
           `Change ${action}`,
         );
       } catch (e) {
+        if (e instanceof ChangeConflictError) {
+          await app.audit.record({
+            actor: 'owner',
+            action: 'change.conflict',
+            projectId: project.id,
+            targetType: 'change',
+            targetId: cs.id,
+            detail: { attempted: action, paths: e.paths },
+          });
+        }
         return handle(reply, e);
       } finally {
         locks.release(project.id);
+      }
+      if (done) {
+        await app.audit.record({
+          actor: 'owner',
+          action: action === 'apply' ? 'change.applied' : 'change.reverted',
+          projectId: project.id,
+          targetType: 'change',
+          targetId: cs.id,
+          detail: { source: cs.source, paths: cs.files.map((f) => f.path) },
+        });
       }
       // An applied agent change triggers the owner-defined checks (outside the lock above).
       if (done && action === 'apply') await agent.onChangeApplied(project, cs);
@@ -312,6 +349,14 @@ export function registerWorkspaceRoutes(
         finishedAt: null,
       });
       req.log.info({ projectId: project.id, runId: run.id, name: run.name }, 'Command started');
+      await app.audit.record({
+        actor: 'owner',
+        action: 'command.started',
+        projectId: project.id,
+        targetType: 'run',
+        targetId: run.id,
+        detail: { name: run.name, argv },
+      });
       // Runs in the background; the client polls GET /runs/:id.
       void runCommand({
         argv,
@@ -319,14 +364,22 @@ export function registerWorkspaceRoutes(
         timeoutMs: config.COMMAND_TIMEOUT_MS,
         maxOutput: config.COMMAND_OUTPUT_MAX,
       })
-        .then((r) =>
-          store.updateRun(project.id, run.id, {
+        .then(async (r) => {
+          await store.updateRun(project.id, run.id, {
             status: r.status,
             exitCode: r.exitCode,
             output: r.output,
             finishedAt: now().toISOString(),
-          }),
-        )
+          });
+          await app.audit.record({
+            actor: 'owner',
+            action: 'command.finished',
+            projectId: project.id,
+            targetType: 'run',
+            targetId: run.id,
+            detail: { name: run.name, status: r.status, exitCode: r.exitCode },
+          });
+        })
         .catch((e: unknown) =>
           app.log.error({ err: e, runId: run.id }, 'Command bookkeeping failed'),
         )

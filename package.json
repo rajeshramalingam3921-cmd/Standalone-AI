@@ -16,12 +16,16 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm build:shared && pnpm -r test",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "check": "pnpm check:secrets && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "dev:server": "pnpm build:shared && pnpm --filter @thiran/server dev",
     "dev:web": "pnpm --filter @thiran/web dev",
     "db:migrate": "pnpm build:shared && pnpm --filter @thiran/server cli migrate",
     "db:import-json": "pnpm build:shared && pnpm --filter @thiran/server cli import-json",
-    "set-password": "pnpm build:shared && pnpm --filter @thiran/server cli set-password"
+    "set-password": "pnpm build:shared && pnpm --filter @thiran/server cli set-password",
+    "backup": "pnpm build:shared && pnpm --filter @thiran/server cli backup",
+    "restore": "pnpm build:shared && pnpm --filter @thiran/server cli restore",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "audit:deps": "pnpm audit --audit-level=moderate"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -33,5 +37,10 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.74.0",
     "vitest": "^5.1.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "@esbuild-kit/core-utils>esbuild": "^0.25.0"
+    }
   }
 }
