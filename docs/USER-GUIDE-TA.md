@@ -59,4 +59,4 @@ Project பற்றிக் கேள்விகள் கேட்க. Chat 
 | "AI provider அமைக்கப்படவில்லை"       | `.env`-இல் `ANTHROPIC_API_KEY`.                                                      |
 | "இதற்கிடையில் சில files மாறியுள்ளன"  | நீங்கள் (அல்லது editor) file-ஐ மாற்றியுள்ளீர்கள். பழைய மாற்றத்தை நிராகரித்து மீண்டும் திட்டமிடுங்கள். |
 | "முயற்சி வரம்பு முடிந்தது"           | Task-ஐ ரத்து செய்து, தெளிவான விவரத்துடன் புதிய task உருவாக்குங்கள்.                        |
-| iPhone-இல் "Host not allowed"      | `ALLOWED_HOSTS`-இல் Tailscale பெயரைச் சேர்க்கவும் (IPHONE-ACCESS.md).                    |
+| iPhone-இல் "Server பதில்: HTTP 421" | `ALLOWED_HOSTS`-இல் Tailscale பெயரைச் சேர்க்கவும் (IPHONE-ACCESS.md).                    |

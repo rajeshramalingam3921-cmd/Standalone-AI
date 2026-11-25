@@ -18,6 +18,9 @@ pnpm backup
 - Backups contain everything in the database, including AI chat history and file contents of
   proposed changes. Treat them as confidential.
 
+Relative `BACKUP_DIR` / `DATA_DIR` paths are resolved from the server's working folder, which is
+`apps/server` for `pnpm start`, `pnpm backup` and the scheduled task in SETUP-WINDOWS.md.
+
 Old backups are never deleted automatically; remove them yourself when you no longer need them.
 
 ## Restore

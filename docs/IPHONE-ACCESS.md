@@ -26,12 +26,15 @@ TRUST_PROXY=true             # trust the local Tailscale proxy for client IPs (a
 ALLOWED_HOSTS=127.0.0.1,localhost,::1,<machine>.<tailnet>.ts.net
 ```
 
-Restart the server. Requests for any other host name are refused (HTTP 421).
+Restart the server. Requests for any other host name are refused: the page then shows
+"Server பதில்: HTTP 421" — add the exact name you typed to `ALLOWED_HOSTS`.
 
 ## 3. On the iPhone
 
 1. Open Safari → `https://<machine>.<tailnet>.ts.net` → sign in.
 2. Share → **Add to Home Screen**. Thiran AI then opens full-screen like an app.
+   iOS keeps Home-Screen apps' storage separate from Safari, so you sign in once more inside
+   the Home-Screen app.
 3. Let iOS Keychain save the password if you like (the login form supports it).
 
 ## Safety checklist

@@ -22,7 +22,8 @@ Open a **new** terminal afterwards, then check: `node -v` (22.x), `pnpm -v` (10.
 
 ```powershell
 cd $HOME\code
-git clone https://github.com/<you>/Standalone-AI.git thiran-ai
+git clone https://github.com/rajeshramalingam3921-cmd/Standalone-AI.git thiran-ai
+# private repository: Git for Windows will ask you to sign in to GitHub
 cd thiran-ai
 pnpm install
 pnpm build
@@ -78,8 +79,12 @@ Task Scheduler → _Create Task…_:
 
 - **General:** "Run only when user is logged on".
 - **Triggers:** _At log on_ (your user).
-- **Actions:** Program `C:\Program Files\nodejs\node.exe`,
-  arguments `apps\server\dist\index.js`, _Start in_ `C:\Users\<you>\code\thiran-ai`.
+- **Actions:** Program `C:\Program Files\nodejs\node.exe`, arguments `dist\index.js`,
+  _Start in_ `C:\Users\<you>\code\thiran-ai\apps\server`.
+  The _Start in_ folder matters: relative paths such as `BACKUP_DIR` (and `DATA_DIR` in JSON mode)
+  are resolved from it, and `pnpm start` / `pnpm backup` also run in `apps\server`. Starting from
+  the repository root would make the System page look for backups in the wrong folder (and, in
+  JSON mode, open a new empty data file).
 - **Settings:** "If the task fails, restart every 1 minute".
 
 Run `pnpm build` again after every `git pull`, then restart the task.
