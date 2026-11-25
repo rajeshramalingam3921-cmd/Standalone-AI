@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
     "@fastify/cookie": "^11.1.5",
     "@fastify/rate-limit": "^11.3.0",
     "@thiran/shared": "workspace:*",

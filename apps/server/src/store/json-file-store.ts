@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import {
+  AI_ERROR_CODES,
   ProjectSchema,
   TaskSchema,
   assertTransition,
+  type ChatMessage,
+  type Conversation,
   type Project,
   type Task,
 } from '@thiran/shared';
@@ -18,6 +21,27 @@ const SessionSchema = z.object({
   expiresAt: z.iso.datetime(),
 });
 
+const ConversationSchema = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  title: z.string(),
+  model: z.string(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+const ChatMessageSchema = z.object({
+  id: z.uuid(),
+  conversationId: z.uuid(),
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+  status: z.enum(['complete', 'truncated', 'refused', 'stopped', 'error']),
+  model: z.string().nullable(),
+  error: z.enum(AI_ERROR_CODES).nullable(),
+  usage: z.object({ inputTokens: z.number(), outputTokens: z.number() }).nullable(),
+  createdAt: z.iso.datetime(),
+});
+
 export const DataSchema = z.object({
   version: z.literal(1),
   projects: z.array(ProjectSchema),
@@ -28,6 +52,9 @@ export const DataSchema = z.object({
     .nullable()
     .default(null),
   sessions: z.array(SessionSchema).default([]),
+  // Added in Phase 5.
+  conversations: z.array(ConversationSchema).default([]),
+  messages: z.array(ChatMessageSchema).default([]),
 });
 export type Data = z.output<typeof DataSchema>;
 
@@ -38,7 +65,15 @@ export interface JsonFileStoreOptions {
   newId?: () => string;
 }
 
-const empty = (): Data => ({ version: 1, projects: [], tasks: [], owner: null, sessions: [] });
+const empty = (): Data => ({
+  version: 1,
+  projects: [],
+  tasks: [],
+  owner: null,
+  sessions: [],
+  conversations: [],
+  messages: [],
+});
 
 /** Read and validate a data file. Missing file → empty data. Invalid → StoreCorruptError. */
 export async function readJsonData(file: string | null): Promise<Data> {
@@ -155,6 +190,53 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
         task.status = to;
         task.updatedAt = ts;
         return structuredClone(task);
+      });
+    },
+
+    async listConversations(projectId) {
+      return structuredClone(data.conversations.filter((c) => c.projectId === projectId)).sort(
+        (a, b) => b.updatedAt.localeCompare(a.updatedAt),
+      );
+    },
+
+    async getConversation(projectId, conversationId) {
+      const c = data.conversations.find(
+        (x) => x.id === conversationId && x.projectId === projectId,
+      );
+      return c && structuredClone(c);
+    },
+
+    createConversation(projectId, input) {
+      return mutate((d) => {
+        if (!d.projects.some((p) => p.id === projectId)) throw new NotFoundError('Project');
+        const ts = now().toISOString();
+        const c: Conversation = { ...input, id: newId(), projectId, createdAt: ts, updatedAt: ts };
+        d.conversations.push(c);
+        return structuredClone(c);
+      });
+    },
+
+    touchConversation(projectId, conversationId, title) {
+      return mutate((d) => {
+        const c = d.conversations.find((x) => x.id === conversationId && x.projectId === projectId);
+        if (!c) throw new NotFoundError('Conversation');
+        c.updatedAt = now().toISOString();
+        if (title !== undefined) c.title = title;
+      });
+    },
+
+    async listMessages(conversationId) {
+      return structuredClone(data.messages.filter((m) => m.conversationId === conversationId));
+    },
+
+    addMessage(message) {
+      return mutate((d) => {
+        if (!d.conversations.some((c) => c.id === message.conversationId)) {
+          throw new NotFoundError('Conversation');
+        }
+        const m: ChatMessage = { ...message, createdAt: message.createdAt ?? now().toISOString() };
+        d.messages.push(m);
+        return structuredClone(m);
       });
     },
 

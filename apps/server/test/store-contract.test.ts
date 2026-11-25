@@ -28,7 +28,7 @@ afterAll(async () => {
 });
 
 async function resetPg() {
-  await pool!.query('TRUNCATE tasks, projects, sessions, owner');
+  await pool!.query('TRUNCATE chat_messages, conversations, tasks, projects, sessions, owner');
 }
 
 const impls: [string, () => Promise<Store>][] = [
@@ -116,6 +116,62 @@ describe.each(impls)('Store contract: %s', (_name, make) => {
     expect((await s.getTask(p.id, t.id))?.history).toHaveLength(2);
   });
 
+  it('stores conversations and messages, scoped per project', async () => {
+    const a = await s.createProject(project('A'));
+    const b = await s.createProject(project('B'));
+    const c = await s.createConversation(a.id, { title: '', model: 'claude-opus-5-5' });
+    expect(await s.getConversation(b.id, c.id)).toBeUndefined();
+    expect(await s.listConversations(b.id)).toEqual([]);
+    await expect(s.touchConversation(b.id, c.id, 'x')).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      s.createConversation('00000000-0000-4000-8000-000000000000', { title: '', model: 'm' }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+
+    const base = { conversationId: c.id, model: null, error: null, usage: null } as const;
+    const u = await s.addMessage({
+      ...base,
+      id: '11111111-1111-4111-8111-111111111111',
+      role: 'user',
+      content: 'வணக்கம்',
+      status: 'complete',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    await s.addMessage({
+      ...base,
+      id: '22222222-2222-4222-8222-222222222222',
+      role: 'assistant',
+      content: 'partial',
+      status: 'error',
+      error: 'rate_limited',
+      model: 'claude-opus-5-5',
+      usage: { inputTokens: 1, outputTokens: 2 },
+      createdAt: '2026-01-01T00:00:01.000Z',
+    });
+    const msgs = await s.listMessages(c.id);
+    expect(msgs[0]).toEqual(u);
+    expect(msgs[1]).toMatchObject({
+      status: 'error',
+      error: 'rate_limited',
+      usage: { inputTokens: 1, outputTokens: 2 },
+    });
+
+    await new Promise((r) => setTimeout(r, 5));
+    await s.touchConversation(a.id, c.id, 'New title');
+    const [updated] = await s.listConversations(a.id);
+    expect(updated!.title).toBe('New title');
+    expect(updated!.updatedAt > c.updatedAt).toBe(true);
+    await expect(
+      s.addMessage({
+        ...base,
+        conversationId: '00000000-0000-4000-8000-000000000000',
+        id: '33333333-3333-4333-8333-333333333333',
+        role: 'user',
+        content: 'x',
+        status: 'complete',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
   it('manages owner password and sessions', async () => {
     expect(await s.getOwnerPasswordHash()).toBeUndefined();
     await s.setOwnerPasswordHash('scrypt$hash1');
@@ -166,6 +222,8 @@ describe.runIf(PG_URL)('JSON → PostgreSQL import', () => {
       tasks: await src.listTasks(p.id),
       owner: { passwordHash: 'scrypt$owner' },
       sessions: [],
+      conversations: [],
+      messages: [],
     };
     expect(await importSnapshot(pool!, snapshot)).toEqual({ projects: 1, tasks: 1 });
 
@@ -178,7 +236,15 @@ describe.runIf(PG_URL)('JSON → PostgreSQL import', () => {
   it('refuses to import into a non-empty database', async () => {
     await createPostgresStore({ pool: pool! }).createProject(project('Existing'));
     await expect(
-      importSnapshot(pool!, { version: 1, projects: [], tasks: [], owner: null, sessions: [] }),
+      importSnapshot(pool!, {
+        version: 1,
+        projects: [],
+        tasks: [],
+        owner: null,
+        sessions: [],
+        conversations: [],
+        messages: [],
+      }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });

@@ -30,6 +30,28 @@ const EnvSchema = z
     LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(5),
     /** General API request limit per client per minute. */
     RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(10).max(10_000).default(300),
+    /** "anthropic" (real Claude API) or "mock" (offline stand-in for development/tests). */
+    AI_PROVIDER: z.enum(['anthropic', 'mock']).default('anthropic'),
+    /** Server-side only. Never sent to the browser, never logged. */
+    ANTHROPIC_API_KEY: z.string().min(1).optional(),
+    /** Comma-separated allow-list of selectable models. */
+    AI_MODELS: z
+      .string()
+      .default('claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5')
+      .transform((v) =>
+        v
+          .split(',')
+          .map((m) => m.trim())
+          .filter(Boolean),
+      ),
+    AI_DEFAULT_MODEL: z.string().min(1).default('claude-opus-5-5'),
+    AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('high'),
+    AI_MAX_TOKENS: z.coerce.number().int().min(256).max(128_000).default(32_000),
+    AI_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(600_000),
+    /** Chat messages per client per minute. */
+    AI_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(20),
+    /** How many recent messages of a conversation are sent as context. */
+    AI_HISTORY_MESSAGES: z.coerce.number().int().min(2).max(500).default(40),
     /** Host names this server answers to (comma-separated). Guards against DNS rebinding. */
     ALLOWED_HOSTS: z
       .string()
@@ -47,6 +69,13 @@ const EnvSchema = z
       COOKIE_SECURE === 'auto' ? env.NODE_ENV === 'production' : COOKIE_SECURE === 'true',
   }))
   .superRefine((env, ctx) => {
+    if (!env.AI_MODELS.includes(env.AI_DEFAULT_MODEL)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AI_DEFAULT_MODEL'],
+        message: 'Must be one of AI_MODELS.',
+      });
+    }
     if (!LOOPBACK_HOSTS.has(env.HOST) && !env.ALLOW_NON_LOOPBACK) {
       ctx.addIssue({
         code: 'custom',

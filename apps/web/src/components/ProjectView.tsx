@@ -12,6 +12,7 @@ import { api } from '../api';
 import { href } from '../router';
 import { useDraft } from '../useDraft';
 import { useResource } from '../useResource';
+import { ChatPanel } from './Chat';
 import { ErrorBox, fieldError } from './FieldError';
 import { StatusBadge } from './StatusBadge';
 
@@ -22,7 +23,15 @@ const FILTER_LABEL: Record<Filter, string> = { all: 'அனைத்தும்
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleString('ta-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
-export function ProjectView({ projectId }: { projectId: string }) {
+export function ProjectView({
+  projectId,
+  tab,
+  conversationId,
+}: {
+  projectId: string;
+  tab?: 'chat';
+  conversationId?: string;
+}) {
   const [project] = useResource(`project:${projectId}`, () => api.getProject(projectId));
   const [tasks, reloadTasks] = useResource(`tasks:${projectId}`, () => api.listTasks(projectId));
   const [filter, setFilter] = useState<Filter>('all');
@@ -71,44 +80,67 @@ export function ProjectView({ projectId }: { projectId: string }) {
         </dl>
       </section>
 
-      <NewTaskForm projectId={projectId} onCreated={() => void reloadTasks()} />
-
-      <div className="section-head">
-        <h2>Tasks</h2>
-        <button
-          type="button"
-          className="button button-ghost button-small"
-          onClick={() => void reloadTasks()}
+      <nav className="tabs tabs-main" aria-label="Project sections">
+        <a
+          className={`tab ${tab !== 'chat' ? 'tab-active' : ''}`}
+          href={href({ name: 'project', projectId })}
+          aria-current={tab !== 'chat' ? 'page' : undefined}
         >
-          புதுப்பி
-        </button>
-      </div>
+          Tasks
+        </a>
+        <a
+          className={`tab ${tab === 'chat' ? 'tab-active' : ''}`}
+          href={href({ name: 'project', projectId, tab: 'chat' })}
+          aria-current={tab === 'chat' ? 'page' : undefined}
+        >
+          AI Chat
+        </a>
+      </nav>
 
-      <div className="tabs" role="tablist" aria-label="Task filter">
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            role="tab"
-            aria-selected={filter === f}
-            className={`tab ${filter === f ? 'tab-active' : ''}`}
-            onClick={() => setFilter(f)}
-          >
-            {FILTER_LABEL[f]} ({count(f)})
-          </button>
-        ))}
-      </div>
+      {tab === 'chat' ? (
+        <ChatPanel projectId={projectId} {...(conversationId && { conversationId })} />
+      ) : (
+        <>
+          <NewTaskForm projectId={projectId} onCreated={() => void reloadTasks()} />
 
-      {tasks.state === 'loading' && <p className="muted">ஏற்றுகிறது…</p>}
-      {tasks.state === 'error' && <ErrorBox message={tasks.message} />}
-      {tasks.state === 'ready' && visible.length === 0 && (
-        <p className="muted empty">இந்தப் பிரிவில் task எதுவும் இல்லை.</p>
+          <div className="section-head">
+            <h2>Tasks</h2>
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={() => void reloadTasks()}
+            >
+              புதுப்பி
+            </button>
+          </div>
+
+          <div className="tabs" role="tablist" aria-label="Task filter">
+            {FILTERS.map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="tab"
+                aria-selected={filter === f}
+                className={`tab ${filter === f ? 'tab-active' : ''}`}
+                onClick={() => setFilter(f)}
+              >
+                {FILTER_LABEL[f]} ({count(f)})
+              </button>
+            ))}
+          </div>
+
+          {tasks.state === 'loading' && <p className="muted">ஏற்றுகிறது…</p>}
+          {tasks.state === 'error' && <ErrorBox message={tasks.message} />}
+          {tasks.state === 'ready' && visible.length === 0 && (
+            <p className="muted empty">இந்தப் பிரிவில் task எதுவும் இல்லை.</p>
+          )}
+          <ul className="list" aria-label="Tasks">
+            {visible.map((t) => (
+              <TaskItem key={t.id} task={t} onChanged={() => void reloadTasks()} />
+            ))}
+          </ul>
+        </>
       )}
-      <ul className="list" aria-label="Tasks">
-        {visible.map((t) => (
-          <TaskItem key={t.id} task={t} onChanged={() => void reloadTasks()} />
-        ))}
-      </ul>
     </>
   );
 }

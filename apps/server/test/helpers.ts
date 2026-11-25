@@ -3,6 +3,7 @@ import { buildApp } from '../src/app.js';
 import { hashPassword } from '../src/auth/password.js';
 import { loadConfig } from '../src/config.js';
 import { createJsonFileStore } from '../src/store/json-file-store.js';
+import type { AiProvider } from '../src/ai/types.js';
 import type { Store } from '../src/store/types.js';
 
 export const TEST_PASSWORD = 'correct horse battery staple';
@@ -23,17 +24,17 @@ export async function makeTestApp(
     env?: Record<string, string>;
     now?: () => Date;
     withOwner?: boolean;
+    provider?: AiProvider;
     /** Register extra routes before the app becomes ready. */
     setup?: (app: FastifyInstance) => void;
   } = {},
 ): Promise<TestApp> {
   const store = await createJsonFileStore({ file: null });
   if (opts.withOwner !== false) await store.setOwnerPasswordHash(await fastHash(TEST_PASSWORD));
-  const app = await buildApp(
-    loadConfig({ NODE_ENV: 'test', ...opts.env }),
-    store,
-    opts.now ? { now: opts.now } : {},
-  );
+  const app = await buildApp(loadConfig({ NODE_ENV: 'test', ...opts.env }), store, {
+    ...(opts.now && { now: opts.now }),
+    ...(opts.provider && { provider: opts.provider }),
+  });
   opts.setup?.(app);
 
   const post = (url: string, body: unknown, cookie?: string) =>

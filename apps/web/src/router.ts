@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react';
 
 export type Route =
-  { name: 'dashboard' } | { name: 'new-project' } | { name: 'project'; projectId: string };
+  | { name: 'dashboard' }
+  | { name: 'new-project' }
+  | { name: 'project'; projectId: string; tab?: 'chat'; conversationId?: string };
 
 /** Hash routes keep the current screen across refreshes without server config. */
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '') || '/';
   if (path === '/projects/new') return { name: 'new-project' };
-  const m = /^\/projects\/([0-9a-fA-F-]{36})$/.exec(path);
-  if (m?.[1]) return { name: 'project', projectId: m[1] };
+  const UUID = '([0-9a-fA-F-]{36})';
+  const m = new RegExp(`^/projects/${UUID}(?:/(chat)(?:/${UUID})?)?$`).exec(path);
+  if (m?.[1]) {
+    if (!m[2]) return { name: 'project', projectId: m[1] };
+    return m[3]
+      ? { name: 'project', projectId: m[1], tab: 'chat', conversationId: m[3] }
+      : { name: 'project', projectId: m[1], tab: 'chat' };
+  }
   return { name: 'dashboard' };
 }
 
@@ -19,7 +27,7 @@ export function href(route: Route): string {
     case 'new-project':
       return '#/projects/new';
     case 'project':
-      return `#/projects/${route.projectId}`;
+      return `#/projects/${route.projectId}${route.tab === 'chat' ? `/chat${route.conversationId ? `/${route.conversationId}` : ''}` : ''}`;
   }
 }
 

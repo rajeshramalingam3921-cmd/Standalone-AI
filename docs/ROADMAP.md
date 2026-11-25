@@ -8,8 +8,8 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
 | 2     | Monorepo, config, lint/test/build, CI, health endpoint, mobile UI   | `pnpm check` green; UI shows live server status on iPhone viewport                                      | ✅ Done |
 | 3     | Workspace UI: project dashboard, project create/select, task list   | Usable at 375px width; status badges for waiting/running/failed/completed; state survives refresh       | ✅ Done |
 | 4     | PostgreSQL + ORM, projects/tasks/events API, owner auth, rate limit | Integration tests against a real test DB; unauthenticated requests rejected; per-project data isolation | ✅ Done |
-| 5     | AI provider layer (Claude first) + chat UI                          | Mocked-provider tests for errors/rate limits/timeouts; keys never reach the browser or logs             | Next    |
-| 6     | Agent engine: sandboxed file ops, diffs, approvals, command runner  | Path-escape tests; destructive actions blocked without approval; diff shown before apply                |         |
+| 5     | AI provider layer (Claude first) + chat UI                          | Mocked-provider tests for errors/rate limits/timeouts; keys never reach the browser or logs             | ✅ Done |
+| 6     | Agent engine: sandboxed file ops, diffs, approvals, command runner  | Path-escape tests; destructive actions blocked without approval; diff shown before apply                | Next    |
 | 7     | Logging, audit, backups/rollback, dependency/security checks        | Audit trail for every change; rollback verified on a sample project                                     |         |
 | 8     | End-to-end workflow test, setup/usage/deploy docs                   | Plan→approve→execute→verify→report on a sample project, verified end to end                             |         |
 | Later | Templates (business site, dashboard, POS, ERP, accounting, …)       | Each template builds and passes its own tests; no unverified compliance claims                          |         |
@@ -44,3 +44,16 @@ Each phase must pass `pnpm check` and its acceptance criteria before the next st
   browser sign-in at iPhone 13 size → create task → reload → logout → API returns 401;
   6th login attempt in 15 minutes returns 429; passwords never appear in logs.
 - Not yet verified: physical iPhone, Windows host, CI run on GitHub.
+
+## Phase 5 notes (2026-11-25)
+
+- Provider interface (`apps/server/src/ai/types.ts`) with an Anthropic implementation (official
+  SDK, streaming, effort setting, prompt caching, server-side safety fallback) and an offline
+  mock. Adding another provider = one file implementing `AiProvider`.
+- Per-project conversations in PostgreSQL/JSON (migration `0001_chat`, additive only).
+- SSE streaming with stop, one-reply-at-a-time lock, per-client rate limit, safe error codes.
+- Verified: provider tests against a local fake Messages API (streaming, request shape, every
+  error class, timeout, abort, refusal, fallback model); chat API and UI tests; browser run at
+  iPhone 13 size with the mock provider (send, stream, stop, error + retry, reload restores
+  messages and draft). Migration applied to the dev database after a `pg_dump` backup.
+- **Not verified: a real Claude API call** — no API key was available in this environment.

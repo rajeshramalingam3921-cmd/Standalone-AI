@@ -4,10 +4,10 @@ A personal, security-first AI development platform: manage multiple software pro
 plan → approve → execute → verify → report coding tasks with AI models, and operate it
 from an iPhone.
 
-> **Status: Phase 4 (persistence + sign-in).** Works today: owner sign-in, projects and
-> tasks stored in PostgreSQL (or a JSON file for zero-setup use), task status on a
-> mobile-first UI. **Not built yet:** AI chat, the agent that actually runs tasks, and
-> file operations. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: Phase 5 (AI chat).** Works today: owner sign-in, projects and tasks in
+> PostgreSQL (or a JSON file), and a per-project AI chat with streaming replies (Claude via
+> the official Anthropic SDK, or an offline mock). **Not built yet:** the agent that reads
+> files, runs commands and executes tasks (Phase 6). See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Requirements
 
@@ -39,6 +39,15 @@ Moving from the Phase 3 JSON file? After `db:migrate`, run `pnpm db:import-json`
 Leave `DATABASE_URL` unset; data goes to `apps/server/.thiran-data/thiran.json`.
 Run `pnpm set-password` the same way.
 
+### AI chat
+
+Put `ANTHROPIC_API_KEY=...` in `.env` (from console.anthropic.com — a Claude subscription does
+not include API access) and restart the server. Without a key, the chat screen explains what
+to set. To try the UI without any key or cost, run the server with `AI_PROVIDER=mock`.
+
+Each message goes to the Anthropic API and is billed to that key. Answers can be wrong; the
+chat cannot see your files or run anything, and says so.
+
 ### Run
 
 ```bash
@@ -56,15 +65,20 @@ never migrates or overwrites data on its own.
 
 ## API
 
-| Method | Path                                             | Purpose                                                    |
-| ------ | ------------------------------------------------ | ---------------------------------------------------------- |
-| GET    | `/api/health`                                    | Server status                                              |
-| GET    | `/api/projects`                                  | Projects with task counts                                  |
-| POST   | `/api/projects`                                  | Create project                                             |
-| GET    | `/api/projects/:projectId`                       | Project details                                            |
-| GET    | `/api/projects/:projectId/tasks`                 | Tasks of one project                                       |
-| POST   | `/api/projects/:projectId/tasks`                 | Create task (`draft`)                                      |
-| POST   | `/api/projects/:projectId/tasks/:taskId/actions` | `{ "action": "approve" \| "request_changes" \| "cancel" }` |
+| Method | Path                                                  | Purpose                                                    |
+| ------ | ----------------------------------------------------- | ---------------------------------------------------------- |
+| GET    | `/api/health`                                         | Server status                                              |
+| GET    | `/api/projects`                                       | Projects with task counts                                  |
+| POST   | `/api/projects`                                       | Create project                                             |
+| GET    | `/api/projects/:projectId`                            | Project details                                            |
+| GET    | `/api/projects/:projectId/tasks`                      | Tasks of one project                                       |
+| POST   | `/api/projects/:projectId/tasks`                      | Create task (`draft`)                                      |
+| GET    | `/api/ai/status`                                      | Provider, configured?, allowed models                      |
+| GET    | `/api/projects/:projectId/conversations`              | Conversations of a project                                 |
+| POST   | `/api/projects/:projectId/conversations`              | New conversation `{ model? }`                              |
+| GET    | `/api/projects/:projectId/conversations/:id/messages` | Messages, oldest first                                     |
+| POST   | `/api/projects/:projectId/conversations/:id/messages` | `{ content, model? }` → SSE stream                         |
+| POST   | `/api/projects/:projectId/tasks/:taskId/actions`      | `{ "action": "approve" \| "request_changes" \| "cancel" }` |
 
 ## Quality gate
 
@@ -83,7 +97,7 @@ pnpm check   # prettier + eslint + typecheck + tests + build
 
 ## சுருக்கம் (தமிழில்)
 
-இப்போது கடவுச்சொல்லுடன் உள்நுழையலாம். Projects, tasks PostgreSQL-இல் சேமிக்கப்படும்.
-Database மாற்றங்கள் (migrations) நீங்கள் `pnpm db:migrate` ஓட்டி உறுதி செய்தால் மட்டுமே
-நடக்கும். கடவுச்சொல்லை server கணினியில் `pnpm set-password` மூலம் மட்டுமே அமைக்க முடியும்.
-AI chat, task-ஐ இயக்கும் agent ஆகியவை அடுத்த phase-களில் வரும்.
+இப்போது ஒவ்வொரு project-க்கும் AI Chat உள்ளது. பதில் எழுத்தெழுத்தாக வரும்; நடுவில் நிறுத்தலாம்;
+model-ஐத் தேர்ந்தெடுக்கலாம். உண்மையான Claude-க்கு `.env`-இல் `ANTHROPIC_API_KEY` தேவை
+(console.anthropic.com — Claude subscription-இல் இது சேர்ந்து வராது). Key server-இல் மட்டுமே
+இருக்கும். இந்த chat உங்கள் files-ஐப் படிக்காது, commands-ஐ ஓட்டாது — அது Phase 6.

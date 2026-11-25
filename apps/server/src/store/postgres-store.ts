@@ -1,10 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, lte, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { assertTransition, type Project, type Task, type TaskStatus } from '@thiran/shared';
+import {
+  assertTransition,
+  type AiErrorCode,
+  type ChatMessage,
+  type ChatMessageStatus,
+  type Conversation,
+  type Project,
+  type Task,
+  type TaskStatus,
+} from '@thiran/shared';
 import * as schema from '../db/schema.js';
-import { owner, projects, sessions, tasks } from '../db/schema.js';
+import { chatMessages, conversations, owner, projects, sessions, tasks } from '../db/schema.js';
 import { ConflictError, NotFoundError } from './errors.js';
 import type { Data } from './json-file-store.js';
 import type { NewProject, NewTask, SessionRecord, Store } from './types.js';
@@ -33,6 +42,31 @@ const toTask = (r: TaskRow): Task => ({
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
 });
+
+const toConversation = (r: typeof conversations.$inferSelect): Conversation => ({
+  id: r.id,
+  projectId: r.projectId,
+  title: r.title,
+  model: r.model,
+  createdAt: r.createdAt.toISOString(),
+  updatedAt: r.updatedAt.toISOString(),
+});
+
+const toMessage = (r: typeof chatMessages.$inferSelect): ChatMessage => ({
+  id: r.id,
+  conversationId: r.conversationId,
+  role: r.role as ChatMessage['role'],
+  content: r.content,
+  status: r.status as ChatMessageStatus,
+  model: r.model,
+  error: r.error as AiErrorCode | null,
+  usage: r.usage ?? null,
+  createdAt: r.createdAt.toISOString(),
+});
+
+const isForeignKeyViolation = (err: unknown) =>
+  (err as { code?: string }).code === '23503' ||
+  (err as { cause?: { code?: string } }).cause?.code === '23503';
 
 const isUniqueViolation = (err: unknown) =>
   typeof err === 'object' &&
@@ -151,6 +185,77 @@ export function createPostgresStore(opts: PostgresStoreOptions): Store {
       });
     },
 
+    async listConversations(projectId) {
+      const rows = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.projectId, projectId))
+        .orderBy(desc(conversations.updatedAt));
+      return rows.map(toConversation);
+    },
+
+    async getConversation(projectId, conversationId) {
+      const [row] = await db
+        .select()
+        .from(conversations)
+        .where(and(eq(conversations.id, conversationId), eq(conversations.projectId, projectId)));
+      return row && toConversation(row);
+    },
+
+    async createConversation(projectId, input) {
+      const at = now();
+      try {
+        const [row] = await db
+          .insert(conversations)
+          .values({ ...input, id: newId(), projectId, createdAt: at, updatedAt: at })
+          .returning();
+        return toConversation(row!);
+      } catch (err) {
+        if (isForeignKeyViolation(err)) throw new NotFoundError('Project');
+        throw err;
+      }
+    },
+
+    async touchConversation(projectId, conversationId, title) {
+      const res = await db
+        .update(conversations)
+        .set({ updatedAt: now(), ...(title !== undefined && { title }) })
+        .where(and(eq(conversations.id, conversationId), eq(conversations.projectId, projectId)));
+      if (!res.rowCount) throw new NotFoundError('Conversation');
+    },
+
+    async listMessages(conversationId) {
+      const rows = await db
+        .select()
+        .from(chatMessages)
+        .where(eq(chatMessages.conversationId, conversationId))
+        .orderBy(asc(chatMessages.createdAt));
+      return rows.map(toMessage);
+    },
+
+    async addMessage(message) {
+      try {
+        const [row] = await db
+          .insert(chatMessages)
+          .values({
+            id: message.id,
+            conversationId: message.conversationId,
+            role: message.role,
+            content: message.content,
+            status: message.status,
+            model: message.model,
+            error: message.error,
+            usage: message.usage,
+            createdAt: message.createdAt ? new Date(message.createdAt) : now(),
+          })
+          .returning();
+        return toMessage(row!);
+      } catch (err) {
+        if (isForeignKeyViolation(err)) throw new NotFoundError('Conversation');
+        throw err;
+      }
+    },
+
     async getOwnerPasswordHash() {
       const [row] = await db.select().from(owner).where(eq(owner.id, 1));
       return row?.passwordHash;
@@ -228,6 +333,16 @@ export async function importSnapshot(
         createdAt: new Date(t.createdAt),
         updatedAt: new Date(t.updatedAt),
       });
+    }
+    for (const c of data.conversations) {
+      await tx.insert(conversations).values({
+        ...c,
+        createdAt: new Date(c.createdAt),
+        updatedAt: new Date(c.updatedAt),
+      });
+    }
+    for (const m of data.messages) {
+      await tx.insert(chatMessages).values({ ...m, createdAt: new Date(m.createdAt) });
     }
     if (data.owner) {
       await tx

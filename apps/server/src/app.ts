@@ -2,8 +2,11 @@ import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { HealthResponse } from '@thiran/shared';
-import { registerAuth, type AuthOptions } from './auth/routes.js';
+import { createProvider } from './ai/provider.js';
+import type { AiProvider } from './ai/types.js';
+import { registerAuth } from './auth/routes.js';
 import type { AppConfig } from './config.js';
+import { registerChatRoutes } from './routes/chat.js';
 import { registerProjectRoutes } from './routes/projects.js';
 import type { Store } from './store/types.js';
 import { VERSION } from './version.js';
@@ -19,12 +22,19 @@ export const LOG_REDACT_PATHS = [
   '*.token',
   '*.secret',
   'req.body.password',
+  '*.ANTHROPIC_API_KEY',
 ];
+
+export interface AppOptions {
+  now?: () => Date;
+  /** Override the AI provider (tests). Defaults to the one selected by config. */
+  provider?: AiProvider;
+}
 
 export async function buildApp(
   config: AppConfig,
   store: Store,
-  opts: AuthOptions = {},
+  opts: AppOptions = {},
 ): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
@@ -106,8 +116,9 @@ export async function buildApp(
     uptimeSeconds: Math.round(process.uptime()),
   }));
 
-  registerAuth(app, store, config, opts);
+  registerAuth(app, store, config, opts.now ? { now: opts.now } : {});
   registerProjectRoutes(app, store);
+  registerChatRoutes(app, store, config, opts.provider ?? createProvider(config), opts.now);
 
   return app;
 }

@@ -375,3 +375,132 @@ textarea:focus {
   padding: 10px 12px;
   overflow-x: auto;
 }
+.tabs-main {
+  margin-top: 4px;
+}
+.tabs-main .tab {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.notice {
+  background: var(--waiting-bg);
+  color: var(--waiting);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+}
+.notice code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.model-select select {
+  font: inherit;
+  font-size: 16px;
+  min-height: 40px;
+  max-width: 55vw;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 8px;
+}
+.messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.msg {
+  max-width: 92%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  overflow-wrap: anywhere;
+}
+.msg-user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.msg-assistant {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.msg-text {
+  margin: 0 0 6px;
+}
+.msg-text:last-child {
+  margin-bottom: 0;
+}
+.msg-note {
+  margin: 4px 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--waiting);
+}
+.msg-note-error {
+  color: var(--failed);
+}
+.codeblock {
+  margin: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.codeblock-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.codeblock pre {
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.link-button {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  min-height: 32px;
+  padding: 0 4px;
+}
+.composer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  background: var(--bg);
+}
+.composer textarea {
+  flex: 1;
+  resize: none;
+  min-height: 48px;
+  max-height: 40vh;
+}
+.composer .button {
+  flex: none;
+}

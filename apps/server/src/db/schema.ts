@@ -71,3 +71,43 @@ export const sessions = pgTable(
   },
   (t) => [index('sessions_expires_idx').on(t.expiresAt)],
 );
+
+export const conversations = pgTable(
+  'conversations',
+  {
+    id: uuid('id').primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'restrict' }),
+    title: text('title').notNull(),
+    model: text('model').notNull(),
+    createdAt: ts('created_at'),
+    updatedAt: ts('updated_at'),
+  },
+  (t) => [index('conversations_project_updated_idx').on(t.projectId, t.updatedAt)],
+);
+
+export const chatMessages = pgTable(
+  'chat_messages',
+  {
+    id: uuid('id').primaryKey(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'restrict' }),
+    role: text('role').notNull(),
+    content: text('content').notNull(),
+    status: text('status').notNull(),
+    model: text('model'),
+    error: text('error'),
+    usage: jsonb('usage').$type<{ inputTokens: number; outputTokens: number }>(),
+    createdAt: ts('created_at'),
+  },
+  (t) => [
+    index('chat_messages_conversation_created_idx').on(t.conversationId, t.createdAt),
+    check('chat_messages_role_check', sql`${t.role} IN ('user', 'assistant')`),
+    check(
+      'chat_messages_status_check',
+      sql`${t.status} IN ('complete', 'truncated', 'refused', 'stopped', 'error')`,
+    ),
+  ],
+);

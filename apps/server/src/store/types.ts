@@ -1,4 +1,6 @@
 import type {
+  ChatMessage,
+  Conversation,
   Project,
   ProjectCreateSchema,
   Task,
@@ -37,6 +39,20 @@ export interface Store {
     to: TaskStatus,
     by: 'user' | 'system',
   ): Promise<Task>;
+
+  listConversations(projectId: string): Promise<Conversation[]>;
+  getConversation(projectId: string, conversationId: string): Promise<Conversation | undefined>;
+  createConversation(
+    projectId: string,
+    input: { title: string; model: string },
+  ): Promise<Conversation>;
+  /** Bump updatedAt and optionally set the title. */
+  touchConversation(projectId: string, conversationId: string, title?: string): Promise<void>;
+  /** Messages of one conversation, oldest first. Caller must have checked the conversation's project. */
+  listMessages(conversationId: string): Promise<ChatMessage[]>;
+  addMessage(
+    message: Omit<ChatMessage, 'createdAt'> & { createdAt?: string },
+  ): Promise<ChatMessage>;
 
   getOwnerPasswordHash(): Promise<string | undefined>;
   /** Sets the owner password and signs out every existing session. */
