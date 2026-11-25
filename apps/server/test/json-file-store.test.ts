@@ -15,7 +15,13 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-const project = (name: string) => ({ name, description: '', techStack: [], workspacePath: '' });
+const project = (name: string) => ({
+  name,
+  description: '',
+  techStack: [],
+  workspacePath: '',
+  commands: {},
+});
 
 describe('JSON file store', () => {
   it('persists projects and tasks across restarts', async () => {

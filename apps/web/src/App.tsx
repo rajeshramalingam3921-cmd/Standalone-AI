@@ -87,14 +87,7 @@ export function App() {
           <>
             {route.name === 'dashboard' && <Dashboard />}
             {route.name === 'new-project' && <NewProject />}
-            {route.name === 'project' && (
-              <ProjectView
-                key={route.projectId}
-                projectId={route.projectId}
-                {...(route.tab && { tab: route.tab })}
-                {...(route.conversationId && { conversationId: route.conversationId })}
-              />
-            )}
+            {route.name === 'project' && <ProjectView key={route.projectId} route={route} />}
           </>
         )}
       </main>

@@ -504,3 +504,106 @@ textarea:focus {
 .composer .button {
   flex: none;
 }
+.crumbs {
+  margin: 4px 0 12px;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+}
+.file-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.file-list li + li {
+  border-top: 1px solid var(--border);
+}
+.file-list a {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 14px;
+  color: var(--text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.file-list .muted:first-child {
+  padding: 14px;
+}
+.inline-form {
+  display: flex;
+  gap: 8px;
+}
+.inline-form input {
+  flex: 1;
+  min-width: 0;
+}
+.file-view,
+.diff {
+  margin: 0;
+  padding: 10px;
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre;
+  color: var(--text);
+}
+.diff {
+  margin-top: 8px;
+}
+.diff-add {
+  display: block;
+  background: var(--done-bg);
+  color: var(--done);
+}
+.diff-del {
+  display: block;
+  background: var(--failed-bg);
+  color: var(--failed);
+}
+.diff-hunk {
+  display: block;
+  color: var(--muted);
+}
+.add {
+  color: var(--done);
+  font-weight: 600;
+}
+.del {
+  color: var(--failed);
+  font-weight: 600;
+}
+.editor {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  min-height: 50vh;
+}
+.cmd-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.error-box ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+details summary {
+  cursor: pointer;
+  min-height: 32px;
+}

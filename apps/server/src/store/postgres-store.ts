@@ -5,6 +5,11 @@ import pg from 'pg';
 import {
   assertTransition,
   type AiErrorCode,
+  type ChangeSet,
+  type ChangeSetStatus,
+  type CommandName,
+  type CommandRun,
+  type CommandRunStatus,
   type ChatMessage,
   type ChatMessageStatus,
   type Conversation,
@@ -13,10 +18,19 @@ import {
   type TaskStatus,
 } from '@thiran/shared';
 import * as schema from '../db/schema.js';
-import { chatMessages, conversations, owner, projects, sessions, tasks } from '../db/schema.js';
+import {
+  changeSets,
+  chatMessages,
+  commandRuns,
+  conversations,
+  owner,
+  projects,
+  sessions,
+  tasks,
+} from '../db/schema.js';
 import { ConflictError, NotFoundError } from './errors.js';
 import type { Data } from './json-file-store.js';
-import type { NewProject, NewTask, SessionRecord, Store } from './types.js';
+import type { NewProject, NewTask, ProjectPatch, SessionRecord, Store } from './types.js';
 
 type Db = NodePgDatabase<typeof schema>;
 type ProjectRow = typeof projects.$inferSelect;
@@ -28,6 +42,7 @@ const toProject = (r: ProjectRow): Project => ({
   description: r.description,
   techStack: r.techStack,
   workspacePath: r.workspacePath,
+  commands: r.commands,
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
 });
@@ -62,6 +77,29 @@ const toMessage = (r: typeof chatMessages.$inferSelect): ChatMessage => ({
   error: r.error as AiErrorCode | null,
   usage: r.usage ?? null,
   createdAt: r.createdAt.toISOString(),
+});
+
+const toChangeSet = (r: typeof changeSets.$inferSelect): ChangeSet => ({
+  id: r.id,
+  projectId: r.projectId,
+  title: r.title,
+  source: r.source as ChangeSet['source'],
+  status: r.status as ChangeSetStatus,
+  files: r.files,
+  createdAt: r.createdAt.toISOString(),
+  decidedAt: r.decidedAt?.toISOString() ?? null,
+});
+
+const toRun = (r: typeof commandRuns.$inferSelect): CommandRun => ({
+  id: r.id,
+  projectId: r.projectId,
+  name: r.name as CommandName,
+  argv: r.argv,
+  status: r.status as CommandRunStatus,
+  exitCode: r.exitCode,
+  output: r.output,
+  startedAt: r.startedAt.toISOString(),
+  finishedAt: r.finishedAt?.toISOString() ?? null,
 });
 
 const isForeignKeyViolation = (err: unknown) =>
@@ -111,6 +149,22 @@ export function createPostgresStore(opts: PostgresStoreOptions): Store {
           .values({ ...input, id: newId(), createdAt: at, updatedAt: at })
           .returning();
         return toProject(row!);
+      } catch (err) {
+        if (isUniqueViolation(err))
+          throw new ConflictError('A project with this name already exists.');
+        throw err;
+      }
+    },
+
+    async updateProject(projectId, patch: ProjectPatch) {
+      try {
+        const [row] = await db
+          .update(projects)
+          .set({ ...patch, updatedAt: now() })
+          .where(eq(projects.id, projectId))
+          .returning();
+        if (!row) throw new NotFoundError('Project');
+        return toProject(row);
       } catch (err) {
         if (isUniqueViolation(err))
           throw new ConflictError('A project with this name already exists.');
@@ -256,6 +310,116 @@ export function createPostgresStore(opts: PostgresStoreOptions): Store {
       }
     },
 
+    async createChangeSet(cs: ChangeSet) {
+      try {
+        const [row] = await db
+          .insert(changeSets)
+          .values({
+            ...cs,
+            createdAt: new Date(cs.createdAt),
+            decidedAt: cs.decidedAt ? new Date(cs.decidedAt) : null,
+          })
+          .returning();
+        return toChangeSet(row!);
+      } catch (err) {
+        if (isForeignKeyViolation(err)) throw new NotFoundError('Project');
+        throw err;
+      }
+    },
+
+    async getChangeSet(projectId, id) {
+      const [row] = await db
+        .select()
+        .from(changeSets)
+        .where(and(eq(changeSets.id, id), eq(changeSets.projectId, projectId)));
+      return row && toChangeSet(row);
+    },
+
+    async listChangeSets(projectId, limit = 50) {
+      const rows = await db
+        .select()
+        .from(changeSets)
+        .where(eq(changeSets.projectId, projectId))
+        .orderBy(desc(changeSets.createdAt))
+        .limit(limit);
+      return rows.map(toChangeSet);
+    },
+
+    async setChangeSetStatus(projectId, id, from, to, at) {
+      // Conditional update: only one concurrent caller can win the transition.
+      const res = await db
+        .update(changeSets)
+        .set({ status: to, decidedAt: new Date(at) })
+        .where(
+          and(
+            eq(changeSets.id, id),
+            eq(changeSets.projectId, projectId),
+            eq(changeSets.status, from),
+          ),
+        );
+      return (res.rowCount ?? 0) > 0;
+    },
+
+    async createRun(run: CommandRun) {
+      try {
+        const [row] = await db
+          .insert(commandRuns)
+          .values({
+            ...run,
+            startedAt: new Date(run.startedAt),
+            finishedAt: run.finishedAt ? new Date(run.finishedAt) : null,
+          })
+          .returning();
+        return toRun(row!);
+      } catch (err) {
+        if (isForeignKeyViolation(err)) throw new NotFoundError('Project');
+        throw err;
+      }
+    },
+
+    async updateRun(projectId, runId, patch) {
+      const res = await db
+        .update(commandRuns)
+        .set({
+          status: patch.status,
+          exitCode: patch.exitCode,
+          output: patch.output,
+          finishedAt: patch.finishedAt ? new Date(patch.finishedAt) : null,
+        })
+        .where(and(eq(commandRuns.id, runId), eq(commandRuns.projectId, projectId)));
+      if (!res.rowCount) throw new NotFoundError('Run');
+    },
+
+    async getRun(projectId, runId) {
+      const [row] = await db
+        .select()
+        .from(commandRuns)
+        .where(and(eq(commandRuns.id, runId), eq(commandRuns.projectId, projectId)));
+      return row && toRun(row);
+    },
+
+    async listRuns(projectId, limit = 20) {
+      const rows = await db
+        .select()
+        .from(commandRuns)
+        .where(eq(commandRuns.projectId, projectId))
+        .orderBy(desc(commandRuns.startedAt))
+        .limit(limit);
+      return rows.map(toRun);
+    },
+
+    async failInterruptedRuns(at) {
+      const res = await db
+        .update(commandRuns)
+        .set({
+          status: 'error',
+          finishedAt: new Date(at),
+          output: sql`${commandRuns.output} || E'\\n[Server restarted while this command was running]'`,
+        })
+        .where(eq(commandRuns.status, 'running'));
+      return res.rowCount ?? 0;
+    },
+
     async getOwnerPasswordHash() {
       const [row] = await db.select().from(owner).where(eq(owner.id, 1));
       return row?.passwordHash;
@@ -343,6 +507,20 @@ export async function importSnapshot(
     }
     for (const m of data.messages) {
       await tx.insert(chatMessages).values({ ...m, createdAt: new Date(m.createdAt) });
+    }
+    for (const c of data.changeSets) {
+      await tx.insert(changeSets).values({
+        ...c,
+        createdAt: new Date(c.createdAt),
+        decidedAt: c.decidedAt ? new Date(c.decidedAt) : null,
+      });
+    }
+    for (const r of data.runs) {
+      await tx.insert(commandRuns).values({
+        ...r,
+        startedAt: new Date(r.startedAt),
+        finishedAt: r.finishedAt ? new Date(r.finishedAt) : null,
+      });
     }
     if (data.owner) {
       await tx

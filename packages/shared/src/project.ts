@@ -8,6 +8,24 @@ const NO_CONTROL_CHARS = /^[^\u0000-\u001f\u007f]*$/;
 const singleLine = (max: number) =>
   z.string().trim().max(max).regex(NO_CONTROL_CHARS, 'Must not contain control characters');
 
+/**
+ * A command the owner allows to run in the project folder, as an argument list
+ * (no shell). Example: ["pnpm", "test"]. Only the owner sets these; the AI can
+ * only ask to run one of them by name.
+ */
+const Argv = z
+  .array(z.string().min(1).max(500).regex(NO_CONTROL_CHARS, 'Must not contain control characters'))
+  .min(1)
+  .max(50);
+
+export const COMMAND_NAMES = ['build', 'test', 'lint'] as const;
+export type CommandName = (typeof COMMAND_NAMES)[number];
+
+export const ProjectCommandsSchema = z
+  .object({ build: Argv.optional(), test: Argv.optional(), lint: Argv.optional() })
+  .strict();
+export type ProjectCommands = z.output<typeof ProjectCommandsSchema>;
+
 export const ProjectCreateSchema = z.object({
   name: singleLine(80).min(1, 'Name is required'),
   description: z.string().trim().max(1000).default(''),
@@ -18,8 +36,22 @@ export const ProjectCreateSchema = z.object({
    * when file access is sandboxed to it.
    */
   workspacePath: singleLine(500).default(''),
+  commands: ProjectCommandsSchema.default({}),
 });
 export type ProjectCreateInput = z.input<typeof ProjectCreateSchema>;
+
+/** PATCH /api/projects/:id — any subset of the create fields. */
+export const ProjectUpdateSchema = z
+  .object({
+    name: ProjectCreateSchema.shape.name,
+    description: z.string().trim().max(1000),
+    techStack: ProjectCreateSchema.shape.techStack.unwrap(),
+    workspacePath: singleLine(500),
+    commands: ProjectCommandsSchema,
+  })
+  .partial()
+  .strict();
+export type ProjectUpdateInput = z.input<typeof ProjectUpdateSchema>;
 
 export const ProjectSchema = ProjectCreateSchema.extend({
   id: z.uuid(),

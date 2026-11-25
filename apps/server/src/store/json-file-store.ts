@@ -6,14 +6,16 @@ import {
   ProjectSchema,
   TaskSchema,
   assertTransition,
+  type ChangeSet,
   type ChatMessage,
+  type CommandRun,
   type Conversation,
   type Project,
   type Task,
 } from '@thiran/shared';
 import { z } from 'zod';
 import { ConflictError, NotFoundError, StoreCorruptError } from './errors.js';
-import type { NewProject, NewTask, SessionRecord, Store } from './types.js';
+import type { NewProject, NewTask, ProjectPatch, SessionRecord, Store } from './types.js';
 
 const SessionSchema = z.object({
   tokenHash: z.string().regex(/^[0-9a-f]{64}$/),
@@ -42,6 +44,38 @@ const ChatMessageSchema = z.object({
   createdAt: z.iso.datetime(),
 });
 
+const ChangeSetSchema = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  title: z.string(),
+  source: z.enum(['user', 'agent']),
+  status: z.enum(['pending', 'applied', 'rejected', 'reverted']),
+  files: z.array(
+    z.object({
+      path: z.string(),
+      action: z.enum(['create', 'modify']),
+      baseSha256: z.string().nullable(),
+      originalContent: z.string().nullable(),
+      newContent: z.string(),
+      newSha256: z.string(),
+    }),
+  ),
+  createdAt: z.iso.datetime(),
+  decidedAt: z.iso.datetime().nullable(),
+});
+
+const CommandRunSchema = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  name: z.enum(['build', 'test', 'lint']),
+  argv: z.array(z.string()),
+  status: z.enum(['running', 'passed', 'failed', 'timeout', 'error']),
+  exitCode: z.number().int().nullable(),
+  output: z.string(),
+  startedAt: z.iso.datetime(),
+  finishedAt: z.iso.datetime().nullable(),
+});
+
 export const DataSchema = z.object({
   version: z.literal(1),
   projects: z.array(ProjectSchema),
@@ -55,6 +89,9 @@ export const DataSchema = z.object({
   // Added in Phase 5.
   conversations: z.array(ConversationSchema).default([]),
   messages: z.array(ChatMessageSchema).default([]),
+  // Added in Phase 6.
+  changeSets: z.array(ChangeSetSchema).default([]),
+  runs: z.array(CommandRunSchema).default([]),
 });
 export type Data = z.output<typeof DataSchema>;
 
@@ -73,6 +110,8 @@ const empty = (): Data => ({
   sessions: [],
   conversations: [],
   messages: [],
+  changeSets: [],
+  runs: [],
 });
 
 /** Read and validate a data file. Missing file → empty data. Invalid → StoreCorruptError. */
@@ -150,6 +189,21 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
         const project: Project = { ...input, id: newId(), createdAt: ts, updatedAt: ts };
         d.projects.push(project);
         return structuredClone(project);
+      });
+    },
+
+    updateProject(projectId, patch: ProjectPatch) {
+      return mutate((d) => {
+        const p = d.projects.find((x) => x.id === projectId);
+        if (!p) throw new NotFoundError('Project');
+        if (patch.name !== undefined) {
+          const key = patch.name.toLocaleLowerCase();
+          if (d.projects.some((x) => x.id !== projectId && x.name.toLocaleLowerCase() === key)) {
+            throw new ConflictError('A project with this name already exists.');
+          }
+        }
+        Object.assign(p, patch, { updatedAt: now().toISOString() });
+        return structuredClone(p);
       });
     },
 
@@ -237,6 +291,84 @@ export async function createJsonFileStore(opts: JsonFileStoreOptions): Promise<S
         const m: ChatMessage = { ...message, createdAt: message.createdAt ?? now().toISOString() };
         d.messages.push(m);
         return structuredClone(m);
+      });
+    },
+
+    createChangeSet(cs: ChangeSet) {
+      return mutate((d) => {
+        if (!d.projects.some((p) => p.id === cs.projectId)) throw new NotFoundError('Project');
+        d.changeSets.push(structuredClone(cs));
+        return structuredClone(cs);
+      });
+    },
+
+    async getChangeSet(projectId, id) {
+      const c = data.changeSets.find((x) => x.id === id && x.projectId === projectId);
+      return c && structuredClone(c);
+    },
+
+    async listChangeSets(projectId, limit = 50) {
+      return structuredClone(
+        data.changeSets
+          .filter((c) => c.projectId === projectId)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, limit),
+      );
+    },
+
+    setChangeSetStatus(projectId, id, from, to, at) {
+      return mutate((d) => {
+        const c = d.changeSets.find((x) => x.id === id && x.projectId === projectId);
+        if (!c || c.status !== from) return false;
+        c.status = to;
+        c.decidedAt = at;
+        return true;
+      });
+    },
+
+    createRun(run: CommandRun) {
+      return mutate((d) => {
+        if (!d.projects.some((p) => p.id === run.projectId)) throw new NotFoundError('Project');
+        d.runs.push(structuredClone(run));
+        return structuredClone(run);
+      });
+    },
+
+    updateRun(projectId, runId, patch) {
+      return mutate((d) => {
+        const r = d.runs.find((x) => x.id === runId && x.projectId === projectId);
+        if (!r) throw new NotFoundError('Run');
+        Object.assign(r, patch);
+      });
+    },
+
+    async getRun(projectId, runId) {
+      const r = data.runs.find((x) => x.id === runId && x.projectId === projectId);
+      return r && structuredClone(r);
+    },
+
+    async listRuns(projectId, limit = 20) {
+      return structuredClone(
+        data.runs
+          .filter((r) => r.projectId === projectId)
+          .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+          .slice(0, limit),
+      );
+    },
+
+    failInterruptedRuns(at) {
+      if (!data.runs.some((r) => r.status === 'running')) return Promise.resolve(0);
+      return mutate((d) => {
+        let n = 0;
+        for (const r of d.runs) {
+          if (r.status === 'running') {
+            r.status = 'error';
+            r.finishedAt = at;
+            r.output += '\n[Server restarted while this command was running]';
+            n++;
+          }
+        }
+        return n;
       });
     },
 

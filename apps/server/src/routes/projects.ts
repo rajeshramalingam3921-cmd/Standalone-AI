@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   ProjectCreateSchema,
+  ProjectUpdateSchema,
   TaskCreateSchema,
   USER_TASK_ACTIONS,
   USER_TASK_ACTION_NAMES,
@@ -50,6 +51,20 @@ export function registerProjectRoutes(app: FastifyInstance, store: Store): void 
     const { projectId } = req.params;
     const project = Uuid.safeParse(projectId).success && (await store.getProject(projectId));
     return project || notFound(reply, 'Project');
+  });
+
+  app.patch<{ Params: { projectId: string } }>('/api/projects/:projectId', async (req, reply) => {
+    const { projectId } = req.params;
+    if (!Uuid.safeParse(projectId).success || !(await store.getProject(projectId))) {
+      return notFound(reply, 'Project');
+    }
+    const parsed = ProjectUpdateSchema.safeParse(req.body);
+    if (!parsed.success) return validationError(reply, parsed.error);
+    const patch = Object.fromEntries(
+      Object.entries(parsed.data).filter(([, v]) => v !== undefined),
+    ) as typeof parsed.data;
+    req.log.info({ projectId, fields: Object.keys(patch) }, 'Project updated');
+    return store.updateProject(projectId, patch as Parameters<Store['updateProject']>[1]);
   });
 
   app.get<{ Params: { projectId: string } }>(

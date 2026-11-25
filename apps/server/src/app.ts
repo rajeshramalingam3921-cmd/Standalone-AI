@@ -8,6 +8,7 @@ import { registerAuth } from './auth/routes.js';
 import type { AppConfig } from './config.js';
 import { registerChatRoutes } from './routes/chat.js';
 import { registerProjectRoutes } from './routes/projects.js';
+import { registerWorkspaceRoutes } from './routes/workspace.js';
 import type { Store } from './store/types.js';
 import { VERSION } from './version.js';
 
@@ -119,6 +120,7 @@ export async function buildApp(
   registerAuth(app, store, config, opts.now ? { now: opts.now } : {});
   registerProjectRoutes(app, store);
   registerChatRoutes(app, store, config, opts.provider ?? createProvider(config), opts.now);
+  registerWorkspaceRoutes(app, store, config, opts.now);
 
   return app;
 }

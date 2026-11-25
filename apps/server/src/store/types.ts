@@ -1,4 +1,7 @@
 import type {
+  ChangeSet,
+  ChangeSetStatus,
+  CommandRun,
   ChatMessage,
   Conversation,
   Project,
@@ -11,6 +14,8 @@ import type { z } from 'zod';
 
 export type NewProject = z.output<typeof ProjectCreateSchema>;
 export type NewTask = z.output<typeof TaskCreateSchema>;
+export type ProjectPatch = Partial<NewProject>;
+export type RunPatch = Pick<CommandRun, 'status' | 'exitCode' | 'output' | 'finishedAt'>;
 
 export interface SessionRecord {
   /** SHA-256 of the session token. The raw token is never stored. */
@@ -30,6 +35,8 @@ export interface Store {
   listProjects(): Promise<Project[]>;
   getProject(projectId: string): Promise<Project | undefined>;
   createProject(input: NewProject): Promise<Project>;
+  /** Update fields of a project. Throws ConflictError on a duplicate name. */
+  updateProject(projectId: string, patch: ProjectPatch): Promise<Project>;
   listTasks(projectId: string): Promise<Task[]>;
   getTask(projectId: string, taskId: string): Promise<Task | undefined>;
   createTask(projectId: string, input: NewTask): Promise<Task>;
@@ -53,6 +60,27 @@ export interface Store {
   addMessage(
     message: Omit<ChatMessage, 'createdAt'> & { createdAt?: string },
   ): Promise<ChatMessage>;
+
+  createChangeSet(changeSet: ChangeSet): Promise<ChangeSet>;
+  getChangeSet(projectId: string, changeSetId: string): Promise<ChangeSet | undefined>;
+  /** Newest first. */
+  listChangeSets(projectId: string, limit?: number): Promise<ChangeSet[]>;
+  /** Atomically move from one status to another; false if it was not in `from`. */
+  setChangeSetStatus(
+    projectId: string,
+    changeSetId: string,
+    from: ChangeSetStatus,
+    to: ChangeSetStatus,
+    at: string,
+  ): Promise<boolean>;
+
+  createRun(run: CommandRun): Promise<CommandRun>;
+  updateRun(projectId: string, runId: string, patch: RunPatch): Promise<void>;
+  getRun(projectId: string, runId: string): Promise<CommandRun | undefined>;
+  /** Newest first. */
+  listRuns(projectId: string, limit?: number): Promise<CommandRun[]>;
+  /** Mark runs left "running" by a previous server process as errored. */
+  failInterruptedRuns(at: string): Promise<number>;
 
   getOwnerPasswordHash(): Promise<string | undefined>;
   /** Sets the owner password and signs out every existing session. */

@@ -4,10 +4,11 @@ A personal, security-first AI development platform: manage multiple software pro
 plan → approve → execute → verify → report coding tasks with AI models, and operate it
 from an iPhone.
 
-> **Status: Phase 5 (AI chat).** Works today: owner sign-in, projects and tasks in
-> PostgreSQL (or a JSON file), and a per-project AI chat with streaming replies (Claude via
-> the official Anthropic SDK, or an offline mock). **Not built yet:** the agent that reads
-> files, runs commands and executes tasks (Phase 6). See [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: Phase 6a (controlled file changes).** Works today: sign-in, projects and tasks,
+> AI chat, and — for project folders you authorize — read-only file browsing, edits that
+> become reviewable diffs, apply only after approval, rollback, and running your own
+> build/test/lint commands. **Not built yet:** the AI agent that proposes changes and runs
+> checks by itself (Phase 6b). See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Requirements
 
@@ -47,6 +48,19 @@ to set. To try the UI without any key or cost, run the server with `AI_PROVIDER=
 
 Each message goes to the Anthropic API and is billed to that key. Answers can be wrong; the
 chat cannot see your files or run anything, and says so.
+
+### Project folders (Files, Changes, Checks)
+
+1. In `.env`, set `WORKSPACE_ROOTS` to the folder that contains your projects
+   (e.g. `C:\Users\you\code`). Nothing outside it can ever be read or written.
+2. In the project's **Settings** tab, set the project folder (inside that root) and, optionally,
+   build / test / lint commands such as `pnpm test`. These run without a shell, with a
+   timeout, and without the server's secrets in their environment.
+3. **Files**: browse and read. `.env`, keys, `.git`, `node_modules` are never shown or read.
+   Editing creates a _change_ — nothing is written yet.
+4. **Changes**: review the diff, tap twice to apply. If the file changed on disk in the
+   meantime, apply is refused. Applied changes can be rolled back (if untouched since).
+5. **Checks**: run your commands and read their output.
 
 ### Run
 
@@ -97,7 +111,7 @@ pnpm check   # prettier + eslint + typecheck + tests + build
 
 ## சுருக்கம் (தமிழில்)
 
-இப்போது ஒவ்வொரு project-க்கும் AI Chat உள்ளது. பதில் எழுத்தெழுத்தாக வரும்; நடுவில் நிறுத்தலாம்;
-model-ஐத் தேர்ந்தெடுக்கலாம். உண்மையான Claude-க்கு `.env`-இல் `ANTHROPIC_API_KEY` தேவை
-(console.anthropic.com — Claude subscription-இல் இது சேர்ந்து வராது). Key server-இல் மட்டுமே
-இருக்கும். இந்த chat உங்கள் files-ஐப் படிக்காது, commands-ஐ ஓட்டாது — அது Phase 6.
+இப்போது நீங்கள் அனுமதித்த project folder-இல் files-ஐப் பார்க்கலாம், திருத்தலாம். திருத்தம் நேரடியாக
+எழுதப்படாது: முதலில் diff ஆகக் காட்டப்பட்டு, நீங்கள் இருமுறை தட்டி அனுமதித்த பிறகே எழுதப்படும்.
+இதற்கிடையில் file மாறியிருந்தால் எழுதாது. தேவைப்பட்டால் திரும்பப் பெறலாம். நீங்கள் அமைத்த
+build/test commands-ஐ மட்டும் ஓட்டலாம். AI தானாக மாற்றங்களைப் பரிந்துரைப்பது அடுத்த படி (Phase 6b).

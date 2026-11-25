@@ -293,6 +293,7 @@ describe('context helpers', () => {
       description: 'billing',
       techStack: ['React'],
       workspacePath: '',
+      commands: {},
       createdAt: '',
       updatedAt: '',
     });

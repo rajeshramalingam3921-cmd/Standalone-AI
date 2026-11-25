@@ -34,6 +34,15 @@ async function main(): Promise<void> {
     process.stderr.write('No owner password set yet. Run `pnpm set-password` before signing in.\n');
   }
 
+  const interrupted = await store.failInterruptedRuns(new Date().toISOString());
+  if (interrupted)
+    process.stderr.write(`Marked ${interrupted} interrupted command run(s) as errored.\n`);
+  if (config.WORKSPACE_ROOTS.length === 0) {
+    process.stderr.write(
+      'WORKSPACE_ROOTS is empty: no project can access files or run commands.\n',
+    );
+  }
+
   const app = await buildApp(config, store);
   app.log.info({ store: store.kind }, 'Data store ready');
 

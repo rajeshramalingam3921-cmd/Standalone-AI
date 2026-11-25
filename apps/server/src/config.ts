@@ -52,6 +52,21 @@ const EnvSchema = z
     AI_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(20),
     /** How many recent messages of a conversation are sent as context. */
     AI_HISTORY_MESSAGES: z.coerce.number().int().min(2).max(500).default(40),
+    /**
+     * Comma-separated absolute folders under which project folders may live.
+     * Empty = no project may access the file system.
+     */
+    WORKSPACE_ROOTS: z
+      .string()
+      .default('')
+      .transform((v) =>
+        v
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean),
+      ),
+    COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(600_000),
+    COMMAND_OUTPUT_MAX: z.coerce.number().int().min(1_000).max(1_000_000).default(64_000),
     /** Host names this server answers to (comma-separated). Guards against DNS rebinding. */
     ALLOWED_HOSTS: z
       .string()

@@ -9,10 +9,14 @@ import {
   type UserTaskAction,
 } from '@thiran/shared';
 import { api } from '../api';
-import { href } from '../router';
+import { href, type ProjectTab, type Route } from '../router';
 import { useDraft } from '../useDraft';
 import { useResource } from '../useResource';
+import { ChangesPanel } from './ChangesPanel';
 import { ChatPanel } from './Chat';
+import { ChecksPanel } from './ChecksPanel';
+import { FilesPanel } from './FilesPanel';
+import { SettingsPanel } from './SettingsPanel';
 import { ErrorBox, fieldError } from './FieldError';
 import { StatusBadge } from './StatusBadge';
 
@@ -23,16 +27,20 @@ const FILTER_LABEL: Record<Filter, string> = { all: 'அனைத்தும்
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleString('ta-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
-export function ProjectView({
-  projectId,
-  tab,
-  conversationId,
-}: {
-  projectId: string;
-  tab?: 'chat';
-  conversationId?: string;
-}) {
-  const [project] = useResource(`project:${projectId}`, () => api.getProject(projectId));
+const TAB_LABELS: [ProjectTab | undefined, string][] = [
+  [undefined, 'Tasks'],
+  ['chat', 'AI Chat'],
+  ['files', 'Files'],
+  ['changes', 'மாற்றங்கள்'],
+  ['checks', 'சோதனைகள்'],
+  ['settings', 'Settings'],
+];
+
+export function ProjectView({ route }: { route: Extract<Route, { name: 'project' }> }) {
+  const { projectId, tab } = route;
+  const [project, reloadProject] = useResource(`project:${projectId}`, () =>
+    api.getProject(projectId),
+  );
   const [tasks, reloadTasks] = useResource(`tasks:${projectId}`, () => api.listTasks(projectId));
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -81,24 +89,35 @@ export function ProjectView({
       </section>
 
       <nav className="tabs tabs-main" aria-label="Project sections">
-        <a
-          className={`tab ${tab !== 'chat' ? 'tab-active' : ''}`}
-          href={href({ name: 'project', projectId })}
-          aria-current={tab !== 'chat' ? 'page' : undefined}
-        >
-          Tasks
-        </a>
-        <a
-          className={`tab ${tab === 'chat' ? 'tab-active' : ''}`}
-          href={href({ name: 'project', projectId, tab: 'chat' })}
-          aria-current={tab === 'chat' ? 'page' : undefined}
-        >
-          AI Chat
-        </a>
+        {TAB_LABELS.map(([t, label]) => (
+          <a
+            key={label}
+            className={`tab ${tab === t ? 'tab-active' : ''}`}
+            href={href({ name: 'project', projectId, ...(t && { tab: t }) })}
+            aria-current={tab === t ? 'page' : undefined}
+          >
+            {label}
+          </a>
+        ))}
       </nav>
 
       {tab === 'chat' ? (
-        <ChatPanel projectId={projectId} {...(conversationId && { conversationId })} />
+        <ChatPanel
+          projectId={projectId}
+          {...(route.conversationId && { conversationId: route.conversationId })}
+        />
+      ) : tab === 'files' ? (
+        <FilesPanel
+          projectId={projectId}
+          {...(route.dir !== undefined && { dir: route.dir })}
+          {...(route.file !== undefined && { file: route.file })}
+        />
+      ) : tab === 'changes' ? (
+        <ChangesPanel projectId={projectId} {...(route.changeId && { changeId: route.changeId })} />
+      ) : tab === 'checks' ? (
+        <ChecksPanel projectId={projectId} />
+      ) : tab === 'settings' ? (
+        <SettingsPanel project={p} onSaved={() => void reloadProject()} />
       ) : (
         <>
           <NewTaskForm projectId={projectId} onCreated={() => void reloadTasks()} />

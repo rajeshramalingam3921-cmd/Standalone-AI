@@ -28,7 +28,9 @@ afterAll(async () => {
 });
 
 async function resetPg() {
-  await pool!.query('TRUNCATE chat_messages, conversations, tasks, projects, sessions, owner');
+  await pool!.query(
+    'TRUNCATE command_runs, change_sets, chat_messages, conversations, tasks, projects, sessions, owner',
+  );
 }
 
 const impls: [string, () => Promise<Store>][] = [
@@ -50,6 +52,7 @@ const project = (name: string) => ({
   description: '',
   techStack: ['React'],
   workspacePath: '',
+  commands: {},
 });
 
 describe.each(impls)('Store contract: %s', (_name, make) => {
@@ -172,6 +175,104 @@ describe.each(impls)('Store contract: %s', (_name, make) => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
+  it('updates projects (incl. commands) and keeps names unique', async () => {
+    const a = await s.createProject(project('A'));
+    await s.createProject(project('B'));
+    const u = await s.updateProject(a.id, {
+      workspacePath: '/w/a',
+      commands: { test: ['pnpm', 'test'] },
+    });
+    expect(u).toMatchObject({
+      name: 'A',
+      workspacePath: '/w/a',
+      commands: { test: ['pnpm', 'test'] },
+    });
+    expect(await s.getProject(a.id)).toEqual(u);
+    await expect(s.updateProject(a.id, { name: 'b' })).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      s.updateProject('00000000-0000-4000-8000-000000000000', { name: 'x' }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('stores change sets and allows each status transition only once', async () => {
+    const p = await s.createProject(project('P'));
+    const cs = {
+      id: '44444444-4444-4444-8444-444444444444',
+      projectId: p.id,
+      title: 'Fix',
+      source: 'user' as const,
+      status: 'pending' as const,
+      files: [
+        {
+          path: 'a.ts',
+          action: 'modify' as const,
+          baseSha256: 'b',
+          originalContent: 'x',
+          newContent: 'y',
+          newSha256: 'n',
+        },
+      ],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      decidedAt: null,
+    };
+    expect(await s.createChangeSet(cs)).toEqual(cs);
+    expect(await s.getChangeSet(p.id, cs.id)).toEqual(cs);
+    const other = await s.createProject(project('Other'));
+    expect(await s.getChangeSet(other.id, cs.id)).toBeUndefined();
+    expect(
+      await s.setChangeSetStatus(other.id, cs.id, 'pending', 'applied', '2026-01-02T00:00:00.000Z'),
+    ).toBe(false);
+
+    const results = await Promise.all(
+      [1, 2, 3].map(() =>
+        s.setChangeSetStatus(p.id, cs.id, 'pending', 'applied', '2026-01-02T00:00:00.000Z'),
+      ),
+    );
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect((await s.listChangeSets(p.id))[0]).toMatchObject({
+      status: 'applied',
+      decidedAt: '2026-01-02T00:00:00.000Z',
+    });
+  });
+
+  it('stores command runs and fails interrupted ones', async () => {
+    const p = await s.createProject(project('P'));
+    const run = {
+      id: '55555555-5555-4555-8555-555555555555',
+      projectId: p.id,
+      name: 'test' as const,
+      argv: ['pnpm', 'test'],
+      status: 'running' as const,
+      exitCode: null,
+      output: 'partial',
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: null,
+    };
+    await s.createRun(run);
+    await s.createRun({
+      ...run,
+      id: '66666666-6666-4666-8666-666666666666',
+      status: 'passed',
+      exitCode: 0,
+      startedAt: '2026-01-01T00:00:01.000Z',
+    });
+    expect(await s.failInterruptedRuns('2026-01-01T01:00:00.000Z')).toBe(1);
+    const r = await s.getRun(p.id, run.id);
+    expect(r).toMatchObject({ status: 'error', finishedAt: '2026-01-01T01:00:00.000Z' });
+    expect(r!.output).toContain('Server restarted');
+    await s.updateRun(p.id, run.id, {
+      status: 'passed',
+      exitCode: 0,
+      output: 'ok',
+      finishedAt: '2026-01-01T02:00:00.000Z',
+    });
+    expect((await s.listRuns(p.id)).map((x) => x.id)).toEqual([
+      '66666666-6666-4666-8666-666666666666',
+      run.id,
+    ]);
+    expect(await s.listRuns((await s.createProject(project('Q'))).id)).toEqual([]);
+  });
+
   it('manages owner password and sessions', async () => {
     expect(await s.getOwnerPasswordHash()).toBeUndefined();
     await s.setOwnerPasswordHash('scrypt$hash1');
@@ -224,6 +325,8 @@ describe.runIf(PG_URL)('JSON → PostgreSQL import', () => {
       sessions: [],
       conversations: [],
       messages: [],
+      changeSets: [],
+      runs: [],
     };
     expect(await importSnapshot(pool!, snapshot)).toEqual({ projects: 1, tasks: 1 });
 
@@ -244,6 +347,8 @@ describe.runIf(PG_URL)('JSON → PostgreSQL import', () => {
         sessions: [],
         conversations: [],
         messages: [],
+        changeSets: [],
+        runs: [],
       }),
     ).rejects.toBeInstanceOf(ConflictError);
   });

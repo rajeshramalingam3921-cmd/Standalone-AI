@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   smallint,
@@ -10,7 +11,12 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { TASK_STATUSES, type TaskHistoryEntry } from '@thiran/shared';
+import {
+  TASK_STATUSES,
+  type ChangeFile,
+  type ProjectCommands,
+  type TaskHistoryEntry,
+} from '@thiran/shared';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' }).notNull();
 
@@ -22,6 +28,7 @@ export const projects = pgTable(
     description: text('description').notNull().default(''),
     techStack: jsonb('tech_stack').$type<string[]>().notNull().default([]),
     workspacePath: text('workspace_path').notNull().default(''),
+    commands: jsonb('commands').$type<ProjectCommands>().notNull().default({}),
     createdAt: ts('created_at'),
     updatedAt: ts('updated_at'),
   },
@@ -108,6 +115,55 @@ export const chatMessages = pgTable(
     check(
       'chat_messages_status_check',
       sql`${t.status} IN ('complete', 'truncated', 'refused', 'stopped', 'error')`,
+    ),
+  ],
+);
+
+export const changeSets = pgTable(
+  'change_sets',
+  {
+    id: uuid('id').primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'restrict' }),
+    title: text('title').notNull(),
+    source: text('source').notNull(),
+    status: text('status').notNull(),
+    files: jsonb('files').$type<ChangeFile[]>().notNull(),
+    createdAt: ts('created_at'),
+    decidedAt: timestamp('decided_at', { withTimezone: true, mode: 'date' }),
+  },
+  (t) => [
+    index('change_sets_project_created_idx').on(t.projectId, t.createdAt),
+    check(
+      'change_sets_status_check',
+      sql`${t.status} IN ('pending', 'applied', 'rejected', 'reverted')`,
+    ),
+    check('change_sets_source_check', sql`${t.source} IN ('user', 'agent')`),
+  ],
+);
+
+export const commandRuns = pgTable(
+  'command_runs',
+  {
+    id: uuid('id').primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    argv: jsonb('argv').$type<string[]>().notNull(),
+    status: text('status').notNull(),
+    exitCode: integer('exit_code'),
+    output: text('output').notNull(),
+    startedAt: ts('started_at'),
+    finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
+  },
+  (t) => [
+    index('command_runs_project_started_idx').on(t.projectId, t.startedAt),
+    check('command_runs_name_check', sql`${t.name} IN ('build', 'test', 'lint')`),
+    check(
+      'command_runs_status_check',
+      sql`${t.status} IN ('running', 'passed', 'failed', 'timeout', 'error')`,
     ),
   ],
 );

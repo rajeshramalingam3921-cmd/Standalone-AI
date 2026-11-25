@@ -27,3 +27,8 @@ Implemented now (Phase 2) is marked ✅; planned items name their phase.
 4. Never forward the port on your router or publish it to the internet.
 
 Known limits: rate limits are per process and reset on restart; there is no second factor yet.
+
+Known limits (Phase 6a): Windows command execution goes through `cmd.exe` for `.cmd`/`.bat`
+tools and rejects arguments containing `& | < > ^ % !` — this path is **not yet tested on
+Windows**. Path checks and writes are not atomic with each other (a local process racing to
+swap in a symlink between check and write is out of scope for this single-user tool).

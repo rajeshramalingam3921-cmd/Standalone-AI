@@ -8,7 +8,22 @@ describe('ProjectCreateSchema', () => {
       description: '',
       techStack: [],
       workspacePath: '',
+      commands: {},
     });
+  });
+
+  it('accepts owner commands as argument lists only', () => {
+    const ok = ProjectCreateSchema.parse({ name: 'x', commands: { test: ['pnpm', 'test'] } });
+    expect(ok.commands.test).toEqual(['pnpm', 'test']);
+    expect(ProjectCreateSchema.safeParse({ name: 'x', commands: { test: [] } }).success).toBe(
+      false,
+    );
+    expect(ProjectCreateSchema.safeParse({ name: 'x', commands: { deploy: ['x'] } }).success).toBe(
+      false,
+    );
+    expect(ProjectCreateSchema.safeParse({ name: 'x', commands: { test: ['a\nb'] } }).success).toBe(
+      false,
+    );
   });
 
   it('rejects empty names, control characters and oversized input', () => {
